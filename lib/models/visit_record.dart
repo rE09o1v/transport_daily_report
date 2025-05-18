@@ -5,8 +5,6 @@ class VisitRecord {
   final String? notes;
   final double? latitude;
   final double? longitude;
-  final double? startMileage;  // 出発時の走行距離
-  final double? endMileage;    // 帰社時の走行距離
 
   VisitRecord({
     required this.id,
@@ -15,8 +13,6 @@ class VisitRecord {
     this.notes,
     this.latitude,
     this.longitude,
-    this.startMileage,
-    this.endMileage,
   });
 
   Map<String, dynamic> toJson() {
@@ -27,8 +23,6 @@ class VisitRecord {
       'notes': notes,
       'latitude': latitude,
       'longitude': longitude,
-      'startMileage': startMileage,
-      'endMileage': endMileage,
     };
   }
 
@@ -40,13 +34,11 @@ class VisitRecord {
       notes: json['notes'],
       latitude: json['latitude'],
       longitude: json['longitude'],
-      startMileage: json['startMileage']?.toDouble(),
-      endMileage: json['endMileage']?.toDouble(),
     );
   }
 
   @override
   String toString() {
-    return 'VisitRecord(id: $id, clientName: $clientName, arrivalTime: $arrivalTime, notes: $notes, latitude: $latitude, longitude: $longitude, startMileage: $startMileage, endMileage: $endMileage)';
+    return 'VisitRecord(id: $id, clientName: $clientName, arrivalTime: $arrivalTime, notes: $notes, latitude: $latitude, longitude: $longitude)';
   }
 } 

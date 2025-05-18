@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:transport_daily_report/models/client.dart';
+import 'package:transport_daily_report/screens/client_detail_screen.dart';
 import 'package:transport_daily_report/screens/visit_entry_screen.dart';
 import 'package:transport_daily_report/services/storage_service.dart';
 
@@ -55,7 +56,19 @@ class _ClientListScreenState extends State<ClientListScreen> {
     }).toList();
   }
 
-  void _selectClient(Client client) {
+  void _viewClientDetail(Client client) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ClientDetailScreen(client: client),
+      ),
+    ).then((_) {
+      // 詳細画面から戻ってきたらリスト更新
+      _loadClients();
+    });
+  }
+
+  void _createVisitRecord(Client client) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -63,7 +76,7 @@ class _ClientListScreenState extends State<ClientListScreen> {
       ),
     ).then((value) {
       if (value == true) {
-        Navigator.pop(context); // 訪問記録が作成されたら、この画面も閉じる
+        Navigator.pop(context);
       }
     });
   }
@@ -198,10 +211,10 @@ class _ClientListScreenState extends State<ClientListScreen> {
                                   : null,
                               trailing: IconButton(
                                 icon: const Icon(Icons.add_circle),
-                                onPressed: () => _selectClient(client),
+                                onPressed: () => _createVisitRecord(client),
                                 tooltip: 'この得意先で訪問記録を登録',
                               ),
-                              onTap: () => _selectClient(client),
+                              onTap: () => _viewClientDetail(client),
                             ),
                           );
                         },

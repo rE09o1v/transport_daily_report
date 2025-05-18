@@ -40,6 +40,7 @@ class _VisitEntryScreenState extends State<VisitEntryScreen> {
       _clientNameController.text = widget.selectedClient!.name;
     }
 
+    if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
@@ -49,10 +50,12 @@ class _VisitEntryScreenState extends State<VisitEntryScreen> {
       // 顧客リストの読み込み
       await _loadClients();
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('初期化中にエラーが発生しました: $e')),
       );
     } finally {
+      if (!mounted) return;
       setState(() => _isLoading = false);
     }
   }
@@ -60,6 +63,7 @@ class _VisitEntryScreenState extends State<VisitEntryScreen> {
   Future<void> _getCurrentLocation() async {
     try {
       final position = await _locationService.getCurrentLocation();
+      if (!mounted) return;
       setState(() {
         _currentPosition = position;
       });
@@ -80,6 +84,7 @@ class _VisitEntryScreenState extends State<VisitEntryScreen> {
       // 最近の顧客（最大5件）
       final recentClients = allClients.take(5).toList();
       
+      if (!mounted) return;
       setState(() {
         _nearbyClients = nearbyClients;
         _recentClients = recentClients;
@@ -114,7 +119,7 @@ class _VisitEntryScreenState extends State<VisitEntryScreen> {
 
     setState(() => _isLoading = true);
 
-    try {          
+    try {
       // 新しい訪問記録を作成
       final newRecord = VisitRecord(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -123,8 +128,6 @@ class _VisitEntryScreenState extends State<VisitEntryScreen> {
         notes: _notesController.text.isEmpty ? null : _notesController.text,
         latitude: _currentPosition?.latitude,
         longitude: _currentPosition?.longitude,
-        startMileage: null, // 走行距離はnullに設定
-        endMileage: null, // 走行距離はnullに設定
       );
 
       // 訪問記録を保存

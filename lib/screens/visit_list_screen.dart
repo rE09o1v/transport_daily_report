@@ -207,10 +207,9 @@ class _VisitListScreenState extends State<VisitListScreen> {
         _lastUpdateDate = dateStr;
       });
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('走行距離を保存しました')),
-      );
+      // スナックバーの代わりに、静かに保存完了とする（自動保存時には明示的な通知は不要）
     } catch (e) {
+      // エラー時だけスナックバーを表示
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('保存に失敗しました: $e')),
       );
@@ -656,6 +655,16 @@ class _VisitListScreenState extends State<VisitListScreen> {
                                         }
                                         return null;
                                       },
+                                      onChanged: (value) {
+                                        if (value.isNotEmpty && double.tryParse(value) != null) {
+                                          // 入力が有効な数値の場合、遅延をもって自動保存
+                                          Future.delayed(const Duration(milliseconds: 500), () {
+                                            if (_formKey.currentState?.validate() ?? false) {
+                                              _saveMileageData();
+                                            }
+                                          });
+                                        }
+                                      },
                                     ),
                                   ),
                                   const SizedBox(width: 12),
@@ -691,6 +700,16 @@ class _VisitListScreenState extends State<VisitListScreen> {
                                         }
                                         return null;
                                       },
+                                      onChanged: (value) {
+                                        if (value.isNotEmpty && double.tryParse(value) != null) {
+                                          // 入力が有効な数値の場合、遅延をもって自動保存
+                                          Future.delayed(const Duration(milliseconds: 500), () {
+                                            if (_formKey.currentState?.validate() ?? false) {
+                                              _saveMileageData();
+                                            }
+                                          });
+                                        }
+                                      },
                                     ),
                                   ),
                                 ],
@@ -708,25 +727,26 @@ class _VisitListScreenState extends State<VisitListScreen> {
                                     ),
                                   ),
                                 ),
+                              // 自動保存の説明
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4.0, bottom: 8.0),
+                                child: Text(
+                                  '※ 入力すると自動で保存されます',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ),
                               // ボタン行
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
                                   TextButton.icon(
                                     onPressed: _resetMileageData,
                                     icon: const Icon(Icons.refresh),
                                     label: const Text('リセット'),
-                                  ),
-                                  ElevatedButton.icon(
-                                    onPressed: _isSavingMileage ? null : _saveMileageData,
-                                    icon: _isSavingMileage 
-                                        ? const SizedBox(
-                                            width: 20,
-                                            height: 20,
-                                            child: CircularProgressIndicator(strokeWidth: 2),
-                                          )
-                                        : const Icon(Icons.save),
-                                    label: const Text('保存'),
                                   ),
                                 ],
                               ),
