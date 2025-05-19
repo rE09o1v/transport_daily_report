@@ -6,7 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 class ClientDetailScreen extends StatefulWidget {
   final Client client;
 
-  const ClientDetailScreen({Key? key, required this.client}) : super(key: key);
+  const ClientDetailScreen({super.key, required this.client});
 
   @override
   _ClientDetailScreenState createState() => _ClientDetailScreenState();

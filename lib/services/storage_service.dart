@@ -105,7 +105,7 @@ class StorageService {
       }
       
       // 空文字列やnullの場合は空のリストを返す
-      if (jsonString == null || jsonString.isEmpty) {
+      if (jsonString.isEmpty) {
         print('訪問記録のJSONデータが空です');
         return [];
       }

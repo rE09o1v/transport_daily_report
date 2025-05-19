@@ -1176,7 +1176,7 @@ class PdfService {
                           ),
                           pw.Padding(
                             padding: const pw.EdgeInsets.all(3),
-                            child: pw.Text(record.alcoholValue != null ? '${record.alcoholValue!.toStringAsFixed(2)}' : '-', style: const pw.TextStyle(fontSize: 9)),
+                            child: pw.Text(record.alcoholValue != null ? '${record.alcoholValue!.toStringAsFixed(2)} mg/L' : '-', style: const pw.TextStyle(fontSize: 9)),
                           ),
                           pw.Padding(
                             padding: const pw.EdgeInsets.all(3),
@@ -1185,15 +1185,9 @@ class PdfService {
                         ],
                       );
                     });
-                  }).toList(),
+                  }),
                 ],
               ),
-              
-              pw.SizedBox(height: 15),
-              
-              pw.Text('※アルコールチェック測定値によって、測定値が0.15mg/L以上の場合は、「酒気帯び」は「有」とする。', style: const pw.TextStyle(fontSize: 9)),
-              pw.SizedBox(height: 5),
-              pw.Text('※始業点呼と終業点呼を対応させるため、日付別ではなく全ての点呼記録を一覧で表示しています。', style: const pw.TextStyle(fontSize: 9)),
             ],
           );
         },
