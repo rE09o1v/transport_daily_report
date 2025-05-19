@@ -51,7 +51,7 @@ class LocationService {
 
   // 現在位置から近い顧客を検索（指定した距離内）
   Future<List<Client>> findNearbyClients(
-      List<Client> allClients, {double maxDistanceInMeters = 1000}) async {
+      List<Client> allClients, {double maxDistanceInMeters = 300}) async {
     final currentPosition = await getCurrentLocation();
     if (currentPosition == null) {
       return [];
