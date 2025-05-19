@@ -136,14 +136,23 @@ class _VisitEntryScreenState extends State<VisitEntryScreen> {
       // 顧客情報が存在しない場合、新規登録
       await _saveClientIfNeeded();
 
-      // 保存が完了したら前の画面に戻る
-      Navigator.of(context).pop(true);
+      // 保存が完了したら前の画面に戻る - 更新フラグをtrueに設定
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('訪問記録を保存しました')),
+        );
+        Navigator.of(context).pop(true);
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('訪問記録の保存に失敗しました: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('訪問記録の保存に失敗しました: $e')),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

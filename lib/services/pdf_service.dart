@@ -3,6 +3,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:transport_daily_report/models/visit_record.dart';
+import 'package:transport_daily_report/models/roll_call_record.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
 import 'package:permission_handler/permission_handler.dart';
@@ -542,5 +543,688 @@ class PdfService {
       totalCount += records.length;
     }
     return totalCount;
+  }
+
+  // 単一日付の点呼記録からPDFレポートを生成する
+  Future<File> generateRollCallReport(List<RollCallRecord> records, DateTime date) async {
+    // 日本語フォントを読み込む
+    final font = await _loadFont();
+    
+    // PDF文書を作成
+    final pdf = pw.Document(
+      theme: pw.ThemeData.withFont(
+        base: font,
+        bold: font,
+      ),
+    );
+    
+    // フォーマッタを準備
+    final dateFormatter = DateFormat('yyyy-MM-dd');
+    final timeFormatter = DateFormat('HH:mm');
+    
+    // タイトルを表示する日付
+    final formattedDate = dateFormatter.format(date);
+    
+    // 点呼記録を日付でフィルタリング
+    final filteredRecords = records.where((record) {
+      final recordDate = record.datetime;
+      return recordDate.year == date.year && 
+             recordDate.month == date.month && 
+             recordDate.day == date.day;
+    }).toList();
+    
+    // 時間でソート
+    filteredRecords.sort((a, b) => a.datetime.compareTo(b.datetime));
+
+    // PDFページを追加
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // ヘッダー
+              pw.Center(
+                child: pw.Text(
+                  '点呼記録表', 
+                  style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+                ),
+              ),
+              
+              pw.SizedBox(height: 20),
+              
+              // 日付表示
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    '日付: ${dateFormatter.format(date)}',
+                    style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                  ),
+                ],
+              ),
+              
+              pw.SizedBox(height: 15),
+              
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.end,
+                children: [
+                  pw.Text(
+                    '作成日: ${dateFormatter.format(DateTime.now())}',
+                    style: const pw.TextStyle(fontSize: 10),
+                  ),
+                ],
+              ),
+              
+              pw.SizedBox(height: 20),
+              
+              // 点呼記録テーブル
+              pw.Table(
+                border: pw.TableBorder.all(),
+                columnWidths: {
+                  0: const pw.FlexColumnWidth(1.5), // 点呼種類
+                  1: const pw.FlexColumnWidth(1.5), // 点呼時間
+                  2: const pw.FlexColumnWidth(2),   // 点呼執行者
+                  3: const pw.FlexColumnWidth(1.5), // 点呼方法
+                  4: const pw.FlexColumnWidth(1.5), // アルコール検査
+                  5: const pw.FlexColumnWidth(1.5), // 酒気帯び
+                  6: const pw.FlexColumnWidth(1.5), // アルコール検出値
+                },
+                children: [
+                  // ヘッダー行
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(5),
+                        child: pw.Text('点呼種類', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(5),
+                        child: pw.Text('時刻', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(5),
+                        child: pw.Text('点呼執行者', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(5),
+                        child: pw.Text('点呼方法', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(5),
+                        child: pw.Text('アルコール検査', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(5),
+                        child: pw.Text('酒気帯び', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(5),
+                        child: pw.Text('検出値', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  // データ行
+                  ...filteredRecords.map((record) {
+                    final methodText = record.method == 'その他' && record.otherMethodDetail != null
+                        ? '${record.method}(${record.otherMethodDetail})'
+                        : record.method;
+                    
+                    return pw.TableRow(
+                      children: [
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(5),
+                          child: pw.Text(record.type == 'start' ? '始業点呼' : '終業点呼'),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(5),
+                          child: pw.Text(timeFormatter.format(record.datetime)),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(5),
+                          child: pw.Text(record.inspectorName),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(5),
+                          child: pw.Text(methodText),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(5),
+                          child: pw.Text(record.isAlcoholTestUsed ? '実施' : '未実施'),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(5),
+                          child: pw.Text(record.hasDrunkAlcohol ? '有' : '無'),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(5),
+                          child: pw.Text(record.alcoholValue != null ? '${record.alcoholValue!.toStringAsFixed(2)} mg/L' : '-'),
+                        ),
+                      ],
+                    );
+                  }),
+                ],
+              ),
+              
+              pw.SizedBox(height: 20),
+              
+              // 備考欄
+              pw.Container(
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(),
+                ),
+                width: double.infinity,
+                padding: const pw.EdgeInsets.all(10),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('備考：', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                    pw.SizedBox(height: 10),
+                    ...filteredRecords.map((record) {
+                      if (record.remarks == null || record.remarks!.isEmpty) {
+                        return pw.SizedBox.shrink();
+                      }
+                      
+                      return pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('${record.type == 'start' ? '始業点呼' : '終業点呼'} (${timeFormatter.format(record.datetime)}):',
+                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                          pw.Text(record.remarks ?? ''),
+                          pw.SizedBox(height: 5),
+                        ],
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    try {
+      // 保存先ディレクトリを取得
+      final directory = await _getOutputDirectory();
+      print('PDFの保存先ディレクトリ: ${directory.path}');
+      
+      // ファイル名にはハイフンを使用
+      final fileName = 'roll_call_report_$formattedDate.pdf';
+      final filePath = path.join(directory.path, fileName);
+      final file = File(filePath);
+      
+      // PDFファイルを保存
+      final pdfBytes = await pdf.save();
+      await file.writeAsBytes(pdfBytes);
+      
+      print('点呼記録PDFファイルが保存されました: ${file.path}');
+      return file;
+    } catch (e) {
+      print('PDFファイル生成エラー: $e');
+      throw Exception('PDFファイルの生成中にエラーが発生しました: $e');
+    }
+  }
+
+  // 複数日程の点呼記録からPDFレポートを生成する
+  Future<File> generateMultiDayRollCallReport(Map<DateTime, List<RollCallRecord>> groupedRecords, {String? title}) async {
+    // 日本語フォントを読み込む
+    final font = await _loadFont();
+    
+    // PDF文書を作成
+    final pdf = pw.Document(
+      theme: pw.ThemeData.withFont(
+        base: font,
+        bold: font,
+      ),
+    );
+    
+    // フォーマッタを準備
+    final dateFormatter = DateFormat('yyyy-MM-dd');
+    final dayFormatter = DateFormat('yyyy年MM月dd日(E)', 'ja_JP');
+    final timeFormatter = DateFormat('HH:mm');
+    
+    // 日付を新しい順に並べる
+    final sortedDates = groupedRecords.keys.toList()
+      ..sort((a, b) => b.compareTo(a));
+
+    // レポートタイトル
+    final reportTitle = title ?? '点呼記録レポート';
+    final reportPeriod = sortedDates.isNotEmpty 
+        ? '${dateFormatter.format(sortedDates.last)} 〜 ${dateFormatter.format(sortedDates.first)}'
+        : '';
+
+    // 各日付ごとのページ
+    for (final date in sortedDates) {
+      final recordsForDate = groupedRecords[date]!;
+      
+      // 時間でソート
+      recordsForDate.sort((a, b) => a.datetime.compareTo(b.datetime));
+      
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                // タイトル
+                pw.Text(
+                  dayFormatter.format(date), 
+                  style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)
+                ),
+                
+                pw.SizedBox(height: 10),
+                
+                // 作成日表示（右寄せ）
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.end,
+                  children: [
+                    pw.Text(
+                      '作成日: ${dateFormatter.format(DateTime.now())}',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                  ],
+                ),
+                
+                pw.SizedBox(height: 10),
+                
+                // 点呼記録がない場合
+                if (recordsForDate.isEmpty)
+                  pw.Text('この日の点呼記録はありません。'),
+                  
+                // 点呼記録テーブル
+                if (recordsForDate.isNotEmpty) 
+                  pw.Table(
+                    border: pw.TableBorder.all(),
+                    columnWidths: {
+                      0: const pw.FlexColumnWidth(1.5), // 点呼種類
+                      1: const pw.FlexColumnWidth(1.5), // 点呼時間
+                      2: const pw.FlexColumnWidth(2),   // 点呼執行者
+                      3: const pw.FlexColumnWidth(1.5), // 点呼方法
+                      4: const pw.FlexColumnWidth(1.5), // アルコール検査
+                      5: const pw.FlexColumnWidth(1.5), // 酒気帯び
+                      6: const pw.FlexColumnWidth(1.5), // アルコール検出値
+                    },
+                    children: [
+                      // ヘッダー行
+                      pw.TableRow(
+                        decoration: const pw.BoxDecoration(
+                          color: PdfColors.grey200,
+                        ),
+                        children: [
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(5),
+                            child: pw.Text('点呼種類', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(5),
+                            child: pw.Text('時刻', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(5),
+                            child: pw.Text('点呼執行者', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(5),
+                            child: pw.Text('点呼方法', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(5),
+                            child: pw.Text('アルコール検査', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(5),
+                            child: pw.Text('酒気帯び', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(5),
+                            child: pw.Text('検出値', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                      // データ行
+                      ...recordsForDate.map((record) {
+                        final methodText = record.method == 'その他' && record.otherMethodDetail != null
+                          ? '${record.method}(${record.otherMethodDetail})'
+                          : record.method;
+                          
+                        return pw.TableRow(
+                          children: [
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.all(5),
+                              child: pw.Text(record.type == 'start' ? '始業点呼' : '終業点呼'),
+                            ),
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.all(5),
+                              child: pw.Text(timeFormatter.format(record.datetime)),
+                            ),
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.all(5),
+                              child: pw.Text(record.inspectorName),
+                            ),
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.all(5),
+                              child: pw.Text(methodText),
+                            ),
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.all(5),
+                              child: pw.Text(record.isAlcoholTestUsed ? '実施' : '未実施'),
+                            ),
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.all(5),
+                              child: pw.Text(record.hasDrunkAlcohol ? '有' : '無'),
+                            ),
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.all(5),
+                              child: pw.Text(record.alcoholValue != null ? '${record.alcoholValue!.toStringAsFixed(2)} mg/L' : '-'),
+                            ),
+                          ],
+                        );
+                      }),
+                    ],
+                  ),
+                
+                pw.SizedBox(height: 20),
+                
+                // 備考欄
+                if (recordsForDate.isNotEmpty) pw.Container(
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(),
+                  ),
+                  width: double.infinity,
+                  padding: const pw.EdgeInsets.all(10),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('備考：', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      pw.SizedBox(height: 10),
+                      ...recordsForDate.map((record) {
+                        if (record.remarks == null || record.remarks!.isEmpty) {
+                          return pw.SizedBox.shrink();
+                        }
+                        
+                        return pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text('${record.type == 'start' ? '始業点呼' : '終業点呼'} (${timeFormatter.format(record.datetime)}):',
+                              style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                            pw.Text(record.remarks ?? ''),
+                            pw.SizedBox(height: 5),
+                          ],
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    }
+
+    try {
+      // 保存先ディレクトリを取得
+      final directory = await _getOutputDirectory();
+      print('PDFの保存先ディレクトリ: ${directory.path}');
+      
+      // 日付文字列の生成（ハイフン区切り）
+      final startDate = sortedDates.isNotEmpty ? dateFormatter.format(sortedDates.last) : '';
+      final endDate = sortedDates.isNotEmpty ? dateFormatter.format(sortedDates.first) : '';
+      final fileName = sortedDates.length > 1 
+          ? 'roll_call_report_${startDate}_to_$endDate.pdf' 
+          : 'roll_call_report_$startDate.pdf';
+      
+      final filePath = path.join(directory.path, fileName);
+      final file = File(filePath);
+      
+      // PDFファイルを保存
+      final pdfBytes = await pdf.save();
+      await file.writeAsBytes(pdfBytes);
+      
+      print('点呼記録PDFファイルが保存されました: ${file.path}');
+      return file;
+    } catch (e) {
+      print('PDFファイル生成エラー: $e');
+      throw Exception('PDFファイルの生成中にエラーが発生しました: $e');
+    }
+  }
+
+  // 複数日程の点呼記録を1枚にまとめたPDFレポートを生成する（サンプルPDFに近い形式で）
+  Future<File> generateCombinedRollCallReport(Map<DateTime, List<RollCallRecord>> groupedRecords, {String? title}) async {
+    // 日本語フォントを読み込む
+    final font = await _loadFont();
+    
+    // PDF文書を作成
+    final pdf = pw.Document(
+      theme: pw.ThemeData.withFont(
+        base: font,
+        bold: font,
+      ),
+    );
+    
+    // フォーマッタを準備
+    final dateFormatter = DateFormat('yyyy-MM-dd');
+    final shortDateFormatter = DateFormat('MM/dd');
+    final dayFormatter = DateFormat('yyyy年MM月dd日(E)', 'ja_JP');
+    final timeFormatter = DateFormat('HH:mm');
+    
+    // 日付を古い順に並べる
+    final sortedDates = groupedRecords.keys.toList()
+      ..sort((a, b) => a.compareTo(b));
+
+    // レポートのタイトル
+    final reportTitle = title ?? '点呼シート';
+    final reportPeriod = sortedDates.isNotEmpty 
+        ? '${dateFormatter.format(sortedDates.first)} 〜 ${dateFormatter.format(sortedDates.last)}'
+        : '';
+
+    // ヘッダー情報
+    final headerText = 'アルコール検知器を携行した者（点呼執行者、運転者）';
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // タイトル
+              pw.Center(
+                child: pw.Text(
+                  reportTitle, 
+                  style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)
+                ),
+              ),
+              
+              pw.SizedBox(height: 10),
+              
+              // 期間情報
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    '期間: $reportPeriod',
+                    style: pw.TextStyle(fontSize: 12),
+                  ),
+                  pw.Text(
+                    '作成日: ${dateFormatter.format(DateTime.now())}',
+                    style: const pw.TextStyle(fontSize: 10),
+                  ),
+                ],
+              ),
+              
+              pw.SizedBox(height: 5),
+              
+              // ヘッダー情報
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.all(5),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(),
+                ),
+                child: pw.Text(
+                  headerText,
+                  style: pw.TextStyle(fontSize: 10),
+                ),
+              ),
+              
+              pw.SizedBox(height: 15),
+              
+              // 点呼記録テーブル
+              pw.Table(
+                border: pw.TableBorder.all(),
+                columnWidths: {
+                  0: const pw.FlexColumnWidth(1.5), // 日付
+                  1: const pw.FlexColumnWidth(1.0), // 点呼種類
+                  2: const pw.FlexColumnWidth(1.0), // 時刻
+                  3: const pw.FlexColumnWidth(1.5), // 点呼執行者
+                  4: const pw.FlexColumnWidth(1.0), // 点呼方法
+                  5: const pw.FlexColumnWidth(1.0), // アルコール検査
+                  6: const pw.FlexColumnWidth(1.0), // 酒気帯び
+                  7: const pw.FlexColumnWidth(1.0), // 検出値
+                  8: const pw.FlexColumnWidth(2.0), // 備考
+                },
+                children: [
+                  // ヘッダー行
+                  pw.TableRow(
+                    decoration: const pw.BoxDecoration(
+                      color: PdfColors.grey200,
+                    ),
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text('日付', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text('点呼種類', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text('時刻', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text('点呼執行者', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text('点呼方法', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text('アルコール\n検査', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text('酒気帯び', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text('検出値', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(3),
+                        child: pw.Text('備考', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                      ),
+                    ],
+                  ),
+                  
+                  // 各日付・各記録のデータ行
+                  ...sortedDates.expand((date) {
+                    final recordsForDate = groupedRecords[date]!;
+                    // 時間でソート
+                    recordsForDate.sort((a, b) => a.datetime.compareTo(b.datetime));
+                    
+                    return recordsForDate.map((record) {
+                      final methodText = record.method == 'その他' && record.otherMethodDetail != null
+                        ? '${record.method}\n(${record.otherMethodDetail})'
+                        : record.method;
+                        
+                      return pw.TableRow(
+                        children: [
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(3),
+                            child: pw.Text(shortDateFormatter.format(date), style: const pw.TextStyle(fontSize: 9)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(3),
+                            child: pw.Text(record.type == 'start' ? '始業点呼' : '終業点呼', style: const pw.TextStyle(fontSize: 9)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(3),
+                            child: pw.Text(timeFormatter.format(record.datetime), style: const pw.TextStyle(fontSize: 9)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(3),
+                            child: pw.Text(record.inspectorName, style: const pw.TextStyle(fontSize: 9)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(3),
+                            child: pw.Text(methodText, style: const pw.TextStyle(fontSize: 9)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(3),
+                            child: pw.Text(record.isAlcoholTestUsed ? '実施' : '未実施', style: const pw.TextStyle(fontSize: 9)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(3),
+                            child: pw.Text(record.hasDrunkAlcohol ? '有' : '無', style: const pw.TextStyle(fontSize: 9)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(3),
+                            child: pw.Text(record.alcoholValue != null ? '${record.alcoholValue!.toStringAsFixed(2)}' : '-', style: const pw.TextStyle(fontSize: 9)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(3),
+                            child: pw.Text(record.remarks ?? '', style: const pw.TextStyle(fontSize: 9)),
+                          ),
+                        ],
+                      );
+                    });
+                  }).toList(),
+                ],
+              ),
+              
+              pw.SizedBox(height: 15),
+              
+              pw.Text('※アルコールチェック測定値によって、測定値が0.15mg/L以上の場合は、「酒気帯び」は「有」とする。', style: const pw.TextStyle(fontSize: 9)),
+              pw.SizedBox(height: 5),
+              pw.Text('※始業点呼と終業点呼を対応させるため、日付別ではなく全ての点呼記録を一覧で表示しています。', style: const pw.TextStyle(fontSize: 9)),
+            ],
+          );
+        },
+      ),
+    );
+
+    try {
+      // 保存先ディレクトリを取得
+      final directory = await _getOutputDirectory();
+      print('PDFの保存先ディレクトリ: ${directory.path}');
+      
+      // 日付文字列の生成（ハイフン区切り）
+      final startDate = sortedDates.isNotEmpty ? dateFormatter.format(sortedDates.first) : '';
+      final endDate = sortedDates.isNotEmpty ? dateFormatter.format(sortedDates.last) : '';
+      
+      final fileName = sortedDates.length > 1 
+          ? 'roll_call_sheet_${startDate}_to_$endDate.pdf' 
+          : 'roll_call_sheet_$startDate.pdf';
+      
+      final filePath = path.join(directory.path, fileName);
+      final file = File(filePath);
+      
+      // PDFファイルを保存
+      final pdfBytes = await pdf.save();
+      await file.writeAsBytes(pdfBytes);
+      
+      print('点呼シートが保存されました: ${file.path}');
+      return file;
+    } catch (e) {
+      print('PDFファイル生成エラー: $e');
+      throw Exception('PDFファイルの生成中にエラーが発生しました: $e');
+    }
   }
 } 

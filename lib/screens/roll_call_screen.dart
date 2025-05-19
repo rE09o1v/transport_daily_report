@@ -20,6 +20,7 @@ class _RollCallScreenState extends State<RollCallScreen> {
   final _inspectorNameController = TextEditingController();
   final _otherMethodDetailController = TextEditingController();
   final _remarksController = TextEditingController();
+  final _alcoholValueController = TextEditingController();
   
   // フォームの状態
   String _method = '対面'; // デフォルトは対面
@@ -41,6 +42,7 @@ class _RollCallScreenState extends State<RollCallScreen> {
     _inspectorNameController.dispose();
     _otherMethodDetailController.dispose();
     _remarksController.dispose();
+    _alcoholValueController.dispose();
     super.dispose();
   }
   
@@ -59,6 +61,7 @@ class _RollCallScreenState extends State<RollCallScreen> {
           _otherMethodDetailController.text = record.otherMethodDetail ?? '';
           _isAlcoholTestUsed = record.isAlcoholTestUsed;
           _hasDrunkAlcohol = record.hasDrunkAlcohol;
+          _alcoholValueController.text = record.alcoholValue?.toString() ?? '';
           _remarksController.text = record.remarks ?? '';
         });
       }
@@ -74,6 +77,12 @@ class _RollCallScreenState extends State<RollCallScreen> {
         // 既存の記録を確認
         final existingRecord = await _storageService.getRollCallRecordByDateAndType(_currentDateTime, widget.type);
         
+        // アルコール検出値の変換
+        double? alcoholValue;
+        if (_alcoholValueController.text.isNotEmpty) {
+          alcoholValue = double.tryParse(_alcoholValueController.text);
+        }
+        
         // 記録オブジェクトを作成
         final record = RollCallRecord(
           id: existingRecord?.id ?? RollCallRecord.generateId(),
@@ -84,6 +93,7 @@ class _RollCallScreenState extends State<RollCallScreen> {
           inspectorName: _inspectorNameController.text,
           isAlcoholTestUsed: _isAlcoholTestUsed,
           hasDrunkAlcohol: _hasDrunkAlcohol,
+          alcoholValue: alcoholValue,
           remarks: _remarksController.text.isEmpty ? null : _remarksController.text,
         );
         
@@ -358,6 +368,39 @@ class _RollCallScreenState extends State<RollCallScreen> {
                           const Text('有'),
                         ],
                       ),
+                      if (_isAlcoholTestUsed) ...[
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            const Text('アルコール検出値:'),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _alcoholValueController,
+                                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                decoration: const InputDecoration(
+                                  labelText: 'mg/L',
+                                  hintText: '0.00',
+                                  border: OutlineInputBorder(),
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                                ),
+                                validator: (value) {
+                                  if (value != null && value.isNotEmpty) {
+                                    final alcoholValue = double.tryParse(value);
+                                    if (alcoholValue == null) {
+                                      return '有効な数値を入力してください';
+                                    }
+                                    if (alcoholValue < 0) {
+                                      return '0以上の値を入力してください';
+                                    }
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),

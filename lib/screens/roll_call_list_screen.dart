@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:transport_daily_report/models/roll_call_record.dart';
 import 'package:transport_daily_report/screens/roll_call_screen.dart';
 import 'package:transport_daily_report/services/storage_service.dart';
+import 'package:transport_daily_report/services/pdf_service.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 
 class RollCallListScreen extends StatefulWidget {
   const RollCallListScreen({super.key});
@@ -13,8 +15,10 @@ class RollCallListScreen extends StatefulWidget {
 
 class _RollCallListScreenState extends State<RollCallListScreen> {
   final _storageService = StorageService();
+  final _pdfService = PdfService();
   Map<DateTime, List<RollCallRecord>> _groupedRecords = {};
   bool _isLoading = true;
+  bool _isGeneratingPdf = false;
 
   @override
   void initState() {
@@ -115,11 +119,108 @@ class _RollCallListScreenState extends State<RollCallListScreen> {
     }
   }
 
+  // 選択した日付の点呼記録をPDFに出力
+  Future<void> _generatePdfForDate(DateTime date) async {
+    setState(() {
+      _isGeneratingPdf = true;
+    });
+
+    try {
+      final records = await _storageService.getRollCallRecordsForDate(date);
+      if (records.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('この日の点呼記録はありません')),
+        );
+        setState(() {
+          _isGeneratingPdf = false;
+        });
+        return;
+      }
+
+      // 点呼シート形式でPDFを生成
+      final pdfFile = await _pdfService.generateCombinedRollCallReport({date: records});
+      
+      if (!mounted) return;
+      setState(() {
+        _isGeneratingPdf = false;
+      });
+      
+      // PDFファイルを共有する
+      await Share.shareXFiles(
+        [XFile(pdfFile.path)],
+        subject: '点呼記録シート ${DateFormat('yyyy-MM-dd').format(date)}',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isGeneratingPdf = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('PDFの生成に失敗しました: $e')),
+      );
+    }
+  }
+
+  // すべての点呼記録をPDFに出力
+  Future<void> _generateAllRollCallPdf() async {
+    if (_groupedRecords.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('点呼記録がありません')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isGeneratingPdf = true;
+    });
+
+    try {
+      final pdfFile = await _pdfService.generateCombinedRollCallReport(_groupedRecords);
+      
+      if (!mounted) return;
+      setState(() {
+        _isGeneratingPdf = false;
+      });
+      
+      // PDFファイルを共有する
+      await Share.shareXFiles(
+        [XFile(pdfFile.path)],
+        subject: '点呼記録シート',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isGeneratingPdf = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('PDFの生成に失敗しました: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('点呼記録'),
+        actions: [
+          // PDF出力ボタン
+          IconButton(
+            onPressed: _isGeneratingPdf ? null : _generateAllRollCallPdf,
+            icon: _isGeneratingPdf
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.0,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Icon(Icons.picture_as_pdf),
+            tooltip: 'PDF出力',
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -136,12 +237,24 @@ class _RollCallListScreenState extends State<RollCallListScreen> {
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(16.0),
-                          child: Text(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
                             DateFormat('yyyy年MM月dd日').format(date),
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.picture_as_pdf, size: 20),
+                                tooltip: 'この日の点呼記録をPDF出力',
+                                onPressed: _isGeneratingPdf 
+                                  ? null 
+                                  : () => _generatePdfForDate(date),
+                              ),
+                            ],
                           ),
                         ),
                         ...records.map((record) => Dismissible(
@@ -191,7 +304,7 @@ class _RollCallListScreenState extends State<RollCallListScreen> {
                               '時刻: ${DateFormat('HH:mm').format(record.datetime)}\n'
                               '点呼執行者: ${record.inspectorName}\n'
                               '点呼方法: ${record.method}${record.method == 'その他' && record.otherMethodDetail != null ? ' (${record.otherMethodDetail})' : ''}\n'
-                              '酒気帯び: ${record.hasDrunkAlcohol ? '有' : '無'}',
+                              '酒気帯び: ${record.hasDrunkAlcohol ? '有' : '無'}${record.alcoholValue != null ? ' (検出値: ${record.alcoholValue!.toStringAsFixed(2)} mg/L)' : ''}',
                             ),
                             isThreeLine: true,
                             trailing: const Icon(Icons.chevron_right),

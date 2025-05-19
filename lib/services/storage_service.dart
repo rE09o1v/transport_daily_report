@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
+import 'dart:async'; // Completerのためのimport
 
 // Webプラットフォーム対応
 import 'dart:io';
@@ -10,6 +12,7 @@ import 'package:transport_daily_report/models/client.dart';
 import 'package:transport_daily_report/models/daily_record.dart';
 import 'package:transport_daily_report/models/roll_call_record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:async/async.dart';
 
 class StorageService {
   static const String _visitRecordsFileName = 'visit_records.json';
@@ -41,23 +44,40 @@ class StorageService {
 
   // 訪問記録の保存
   Future<void> saveVisitRecords(List<VisitRecord> records) async {
-    final jsonData = records.map((record) => record.toJson()).toList();
-    final jsonString = jsonEncode(jsonData);
+    print('訪問記録の保存を開始: ${records.length}件');
     
-    if (isWeb) {
-      // Web用の実装 - SharedPreferencesを使用
-      final prefs = await getPrefs();
-      await prefs.setString(_visitRecordsStorageKey, jsonString);
-    } else {
-      // ネイティブ用の実装
-      final directory = await getApplicationDocumentsDirectory();
-      final file = File('${directory.path}/$_visitRecordsFileName');
-      await file.writeAsString(jsonString);
+    try {
+      final jsonData = records.map((record) => record.toJson()).toList();
+      final jsonString = jsonEncode(jsonData);
+      
+      if (isWeb) {
+        // Web用の実装 - SharedPreferencesを使用
+        final prefs = await getPrefs();
+        await prefs.setString(_visitRecordsStorageKey, jsonString);
+        print('Web: SharedPreferencesに訪問記録を保存しました');
+      } else {
+        // ネイティブ用の実装
+        final directory = await getApplicationDocumentsDirectory();
+        final file = File('${directory.path}/$_visitRecordsFileName');
+        await file.writeAsString(jsonString, flush: true);
+        print('ネイティブ: ファイルに訪問記録を保存しました: ${file.path}');
+        
+        // 書き込みが完了したことを確認
+        if (await file.exists()) {
+          final fileContents = await file.readAsString();
+          final savedRecords = jsonDecode(fileContents) as List;
+          print('保存されたデータを確認: ${savedRecords.length}件のレコードが保存されています');
+        }
+      }
+    } catch (e) {
+      print('訪問記録の保存中にエラーが発生しました: $e');
+      rethrow;
     }
   }
 
   // 訪問記録の読み込み
   Future<List<VisitRecord>> loadVisitRecords() async {
+    print('訪問記録の読み込みを開始');
     try {
       String? jsonString;
       
@@ -65,23 +85,37 @@ class StorageService {
         // Web用の実装 - SharedPreferencesを使用
         final prefs = await getPrefs();
         jsonString = prefs.getString(_visitRecordsStorageKey);
-        if (jsonString == null) return [];
+        if (jsonString == null) {
+          print('Web: 保存された訪問記録がありません');
+          return [];
+        }
+        print('Web: SharedPreferencesから訪問記録を読み込みました');
       } else {
         // ネイティブ用の実装
         final directory = await getApplicationDocumentsDirectory();
         final file = File('${directory.path}/$_visitRecordsFileName');
         
         if (!await file.exists()) {
+          print('ネイティブ: 訪問記録ファイルが存在しません: ${file.path}');
           return [];
         }
         
         jsonString = await file.readAsString();
+        print('ネイティブ: ファイルから訪問記録を読み込みました: ${file.path}');
+      }
+      
+      // 空文字列やnullの場合は空のリストを返す
+      if (jsonString == null || jsonString.isEmpty) {
+        print('訪問記録のJSONデータが空です');
+        return [];
       }
       
       final List<dynamic> jsonData = jsonDecode(jsonString);
-      return jsonData.map((data) => VisitRecord.fromJson(data)).toList();
+      final records = jsonData.map((data) => VisitRecord.fromJson(data)).toList();
+      print('訪問記録の読み込みが完了しました: ${records.length}件');
+      return records;
     } catch (e) {
-      print('Error loading visit records: $e');
+      print('訪問記録の読み込み中にエラーが発生しました: $e');
       return [];
     }
   }
@@ -135,9 +169,65 @@ class StorageService {
 
   // 単一の訪問記録の追加
   Future<void> addVisitRecord(VisitRecord record) async {
-    final records = await loadVisitRecords();
-    records.add(record);
-    await saveVisitRecords(records);
+    print('訪問記録の追加を開始: ${record.clientName} (${DateFormat('yyyy/MM/dd HH:mm').format(record.arrivalTime)})');
+    
+    // 同期ロックのためのCompleter (完了を保証するため)
+    final completer = Completer<void>();
+    
+    try {
+      // 現在のレコードを取得
+      final records = await loadVisitRecords();
+      print('現在の訪問記録数: ${records.length}件');
+      
+      // 新しいレコードを追加
+      records.add(record);
+      print('新しい訪問記録を追加しました (ID: ${record.id})');
+      
+      // ファイルに保存 - 直接awaitせず、completerを使用
+      saveVisitRecords(records).then((_) {
+        print('訪問記録ファイルへの保存が完了しました');
+        
+        // 日付別のグループキャッシュを更新
+        final recordDate = DateTime(
+          record.arrivalTime.year,
+          record.arrivalTime.month,
+          record.arrivalTime.day,
+        );
+        
+        // 最新の日付ごとのデータを取得して更新を確認
+        return getVisitRecordsGroupedByDate();
+      }).then((updatedGroups) {
+        final recordDate = DateTime(
+          record.arrivalTime.year,
+          record.arrivalTime.month,
+          record.arrivalTime.day,
+        );
+        final updatedDateRecords = updatedGroups[recordDate] ?? [];
+        print('この日付の訪問記録数: ${updatedDateRecords.length}件');
+        
+        // 再度読み込みを試してみる (完全に非同期)
+        return loadVisitRecords();
+      }).then((allRecordsAfterSave) {
+        print('保存後の総訪問記録数: ${allRecordsAfterSave.length}件');
+        
+        // バグデバッグ用: 追加したレコードが正しく保存されたか確認
+        final foundAfterSave = allRecordsAfterSave.any((r) => r.id == record.id);
+        print('保存後の記録に新しいIDが見つかりました: $foundAfterSave');
+        
+        // すべての処理が完了
+        completer.complete();
+      }).catchError((e) {
+        print('訪問記録の処理中にエラーが発生しました: $e');
+        completer.completeError(e);
+      });
+      
+      // このメソッドを呼び出す側はこのcompleterが完了するまで待つ
+      return completer.future;
+    } catch (e) {
+      print('訪問記録の追加に失敗しました: $e');
+      completer.completeError(Exception('訪問記録の追加に失敗しました: $e'));
+      return completer.future;
+    }
   }
 
   // 単一の顧客情報の追加

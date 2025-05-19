@@ -25,11 +25,6 @@ class _VisitListScreenState extends State<VisitListScreen> {
   final _endMileageController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   
-  // アルコール値入力用コントローラー
-  final _morningAlcoholController = TextEditingController();
-  final _eveningAlcoholController = TextEditingController();
-  final _alcoholFormKey = GlobalKey<FormState>();
-  
   List<VisitRecord> _visitRecords = [];
   Map<DateTime, List<VisitRecord>> _groupedRecords = {};
   DateTime _selectedDate = DateTime.now();
@@ -40,11 +35,7 @@ class _VisitListScreenState extends State<VisitListScreen> {
   bool _isSavingMileage = false; // 走行距離保存中フラグ
   String? _lastUpdateDate; // 最終更新日
   
-  // アルコールチェック状態
-  bool _isSavingAlcohol = false;
-
   // 折りたたみ状態
-  bool _alcoholPanelExpanded = false;
   bool _mileagePanelExpanded = false;
 
   @override
@@ -52,7 +43,6 @@ class _VisitListScreenState extends State<VisitListScreen> {
     super.initState();
     _loadVisitRecords();
     _loadMileageData();
-    _loadAlcoholValues();
     _loadPanelState();
     
     // 走行距離の変更を監視するリスナーを追加
@@ -66,76 +56,7 @@ class _VisitListScreenState extends State<VisitListScreen> {
     _endMileageController.removeListener(_updateDistanceDifference);
     _startMileageController.dispose();
     _endMileageController.dispose();
-    _morningAlcoholController.dispose();
-    _eveningAlcoholController.dispose();
     super.dispose();
-  }
-  
-  // アルコール値を読み込む
-  Future<void> _loadAlcoholValues() async {
-    try {
-      final values = await _storageService.getAlcoholValues();
-      
-      setState(() {
-        _morningAlcoholController.text = values['morningValue']?.toString() ?? '';
-        _eveningAlcoholController.text = values['eveningValue']?.toString() ?? '';
-      });
-    } catch (e) {
-      print('アルコール値の読み込みに失敗しました: $e');
-    }
-  }
-  
-  // アルコール値を保存
-  Future<void> _saveAlcoholValue(bool isMorning) async {
-    if (!_alcoholFormKey.currentState!.validate()) {
-      return;
-    }
-    
-    setState(() {
-      _isSavingAlcohol = true;
-    });
-    
-    try {
-      final value = isMorning
-          ? double.parse(_morningAlcoholController.text)
-          : double.parse(_eveningAlcoholController.text);
-      
-      await _storageService.saveAlcoholValue(isMorning, value);
-      
-      final timeType = isMorning ? '朝' : '夜';
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$timeTypeのアルコール検出値を保存しました')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('保存に失敗しました: $e')),
-      );
-    } finally {
-      setState(() {
-        _isSavingAlcohol = false;
-      });
-    }
-  }
-  
-  // アルコール値をリセット
-  Future<void> _resetAlcoholValues() async {
-    try {
-      await _storageService.resetAlcoholValues();
-      
-      setState(() {
-        _morningAlcoholController.text = '';
-        _eveningAlcoholController.text = '';
-      });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('アルコール検出値をリセットしました')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('リセットに失敗しました: $e')),
-      );
-    }
   }
   
   // 走行距離の差分を更新
@@ -243,6 +164,8 @@ class _VisitListScreenState extends State<VisitListScreen> {
   }
 
   Future<void> _loadVisitRecords() async {
+    print('訪問記録データの読み込みを開始します');
+    
     setState(() {
       _isLoading = true;
     });
@@ -250,29 +173,42 @@ class _VisitListScreenState extends State<VisitListScreen> {
     try {
       if (_isGroupByDate) {
         // 日付別グループ化モード
+        print('グループ化モードで訪問記録を読み込み中...');
         final groupedRecords = await _storageService.getVisitRecordsGroupedByDate();
         final allRecords = await _storageService.loadVisitRecords();
         
-        setState(() {
-          _groupedRecords = groupedRecords;
-          _visitRecords = allRecords;
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _groupedRecords = groupedRecords;
+            _visitRecords = allRecords;
+            _isLoading = false;
+          });
+          print('訪問記録の読み込みが完了しました: ${allRecords.length}件');
+        }
       } else {
         // 単一日付フィルターモード
+        print('単一日付フィルターモードで訪問記録を読み込み中...');
         final records = await _storageService.getVisitRecordsForDate(_selectedDate);
-        setState(() {
-          _visitRecords = records;
-          _isLoading = false;
-        });
+        
+        if (mounted) {
+          setState(() {
+            _visitRecords = records;
+            _isLoading = false;
+          });
+          print('訪問記録の読み込みが完了しました: ${records.length}件');
+        }
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('訪問記録の読み込みに失敗しました: $e')),
-      );
+      print('訪問記録の読み込み中にエラーが発生しました: $e');
+      
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('訪問記録の読み込みに失敗しました: $e')),
+        );
+      }
     }
   }
 
@@ -428,8 +364,6 @@ class _VisitListScreenState extends State<VisitListScreen> {
                   expansionCallback: (panelIndex, isExpanded) {
                     setState(() {
                       if (panelIndex == 0) {
-                        _alcoholPanelExpanded = !_alcoholPanelExpanded;
-                      } else if (panelIndex == 1) {
                         _mileagePanelExpanded = !_mileagePanelExpanded;
                       }
                       // パネル状態を保存
@@ -437,150 +371,6 @@ class _VisitListScreenState extends State<VisitListScreen> {
                     });
                   },
                   children: [
-                    // アルコールチェックパネル（最初に表示）
-                    ExpansionPanel(
-                      headerBuilder: (context, isExpanded) {
-                        return ListTile(
-                          title: Row(
-                            children: [
-                              const Icon(Icons.local_bar),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'アルコールチェック',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              // 値が入力されていることを示すインジケータ
-                              if (_morningAlcoholController.text.isNotEmpty || _eveningAlcoholController.text.isNotEmpty)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).primaryColor,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    '記録あり',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Theme.of(context).colorScheme.onPrimary,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          trailing: Icon(
-                            isExpanded ? Icons.expand_less : Icons.expand_more,
-                            color: Colors.grey,
-                          ),
-                        );
-                      },
-                      body: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16), // 上部パディングを追加
-                        child: Form(
-                          key: _alcoholFormKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  // 朝のアルコール値
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text('朝の検出値'),
-                                        const SizedBox(height: 4),
-                                        TextFormField(
-                                          controller: _morningAlcoholController,
-                                          decoration: const InputDecoration(
-                                            labelText: 'mg/L',
-                                            hintText: '0.00',
-                                            border: OutlineInputBorder(),
-                                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16), // パディングを調整
-                                          ),
-                                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                          validator: (value) {
-                                            if (value != null && value.isNotEmpty) {
-                                              final alcoholValue = double.tryParse(value);
-                                              if (alcoholValue == null) {
-                                                return '有効な数値を入力してください';
-                                              }
-                                              if (alcoholValue < 0) {
-                                                return '0以上の値を入力してください';
-                                              }
-                                            }
-                                            return null;
-                                          },
-                                          onChanged: (value) {
-                                            if (value.isNotEmpty && double.tryParse(value) != null) {
-                                              _saveAlcoholValue(true);
-                                            }
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  // 夜のアルコール値
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text('夜の検出値'),
-                                        const SizedBox(height: 4),
-                                        TextFormField(
-                                          controller: _eveningAlcoholController,
-                                          decoration: const InputDecoration(
-                                            labelText: 'mg/L',
-                                            hintText: '0.00',
-                                            border: OutlineInputBorder(),
-                                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16), // パディングを調整
-                                          ),
-                                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                          validator: (value) {
-                                            if (value != null && value.isNotEmpty) {
-                                              final alcoholValue = double.tryParse(value);
-                                              if (alcoholValue == null) {
-                                                return '有効な数値を入力してください';
-                                              }
-                                              if (alcoholValue < 0) {
-                                                return '0以上の値を入力してください';
-                                              }
-                                            }
-                                            return null;
-                                          },
-                                          onChanged: (value) {
-                                            if (value.isNotEmpty && double.tryParse(value) != null) {
-                                              _saveAlcoholValue(false);
-                                            }
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  TextButton.icon(
-                                    onPressed: _resetAlcoholValues,
-                                    icon: const Icon(Icons.refresh),
-                                    label: const Text('リセット'),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      isExpanded: _alcoholPanelExpanded,
-                    ),
-
                     // 走行距離入力パネル（2番目に表示）
                     ExpansionPanel(
                       headerBuilder: (context, isExpanded) {
@@ -614,10 +404,6 @@ class _VisitListScreenState extends State<VisitListScreen> {
                                   ),
                                 ),
                             ],
-                          ),
-                          trailing: Icon(
-                            isExpanded ? Icons.expand_less : Icons.expand_more,
-                            color: Colors.grey,
                           ),
                         );
                       },
@@ -769,15 +555,82 @@ class _VisitListScreenState extends State<VisitListScreen> {
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const VisitEntryScreen(),
-            ),
-          );
+          print('訪問記録登録画面を開きます');
           
-          if (result == true) {
-            _loadVisitRecords();
+          try {
+            // 訪問記録登録画面を表示
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const VisitEntryScreen(),
+              ),
+            );
+            
+            print('訪問記録登録画面から戻りました: result=$result');
+            
+            // 新しい訪問記録が登録された場合（resultがtrue）
+            if (result == true) {
+              print('訪問記録が追加されたため、データを再読み込みします');
+              
+              // いったんローディング状態に戻して、古いデータを表示しないようにする
+              if (mounted) {
+                setState(() {
+                  _isLoading = true;
+                });
+              }
+              
+              // 500msの遅延を設定して、確実にストレージへの書き込みが完了するのを待つ
+              await Future.delayed(const Duration(milliseconds: 500));
+              
+              // データを最新化
+              if (mounted) {
+                try {
+                  if (_isGroupByDate) {
+                    // グループ化モードの場合、両方のデータを取得
+                    final groupedRecords = await _storageService.getVisitRecordsGroupedByDate();
+                    final allRecords = await _storageService.loadVisitRecords();
+                    
+                    if (mounted) {
+                      setState(() {
+                        _groupedRecords = groupedRecords;
+                        _visitRecords = allRecords;
+                        _isLoading = false;
+                        print('グループ化モードでのUI更新完了: ${allRecords.length}件のレコード');
+                      });
+                    }
+                  } else {
+                    // 単一日付モードの場合
+                    final records = await _storageService.getVisitRecordsForDate(_selectedDate);
+                    
+                    if (mounted) {
+                      setState(() {
+                        _visitRecords = records;
+                        _isLoading = false;
+                        print('単一日付モードでのUI更新完了: ${records.length}件のレコード');
+                      });
+                    }
+                  }
+                } catch (e) {
+                  print('データ再読み込み中にエラーが発生しました: $e');
+                  if (mounted) {
+                    setState(() {
+                      _isLoading = false;
+                    });
+                    
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('データの更新に失敗しました: $e')),
+                    );
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            print('訪問記録登録中にエラーが発生しました: $e');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('エラーが発生しました: $e')),
+              );
+            }
           }
         },
         child: const Icon(Icons.add),
@@ -949,7 +802,6 @@ class _VisitListScreenState extends State<VisitListScreen> {
     try {
       final prefs = await _storageService.getPrefs();
       setState(() {
-        _alcoholPanelExpanded = prefs.getBool('alcoholPanelExpanded') ?? false;
         _mileagePanelExpanded = prefs.getBool('mileagePanelExpanded') ?? false;
       });
     } catch (e) {
@@ -961,7 +813,6 @@ class _VisitListScreenState extends State<VisitListScreen> {
   Future<void> _savePanelState() async {
     try {
       final prefs = await _storageService.getPrefs();
-      await prefs.setBool('alcoholPanelExpanded', _alcoholPanelExpanded);
       await prefs.setBool('mileagePanelExpanded', _mileagePanelExpanded);
     } catch (e) {
       print('パネル状態の保存に失敗しました: $e');

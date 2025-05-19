@@ -7,6 +7,7 @@ class RollCallRecord {
   final String inspectorName; // 点呼執行者名
   final bool isAlcoholTestUsed; // アルコール検知器の使用有無
   final bool hasDrunkAlcohol; // 酒気帯びの有無
+  final double? alcoholValue; // アルコール検出量（mg/L）
   final String? remarks; // 備考
 
   RollCallRecord({
@@ -18,6 +19,7 @@ class RollCallRecord {
     required this.inspectorName,
     required this.isAlcoholTestUsed,
     required this.hasDrunkAlcohol,
+    this.alcoholValue,
     this.remarks,
   });
 
@@ -42,6 +44,7 @@ class RollCallRecord {
       'inspectorName': inspectorName,
       'isAlcoholTestUsed': isAlcoholTestUsed,
       'hasDrunkAlcohol': hasDrunkAlcohol,
+      'alcoholValue': alcoholValue,
       'remarks': remarks,
     };
   }
@@ -57,6 +60,7 @@ class RollCallRecord {
       inspectorName: json['inspectorName'],
       isAlcoholTestUsed: json['isAlcoholTestUsed'] ?? true, // 既存データ互換性のため
       hasDrunkAlcohol: json['hasDrunkAlcohol'] ?? false, // 既存データ互換性のため
+      alcoholValue: json['alcoholValue']?.toDouble(),
       remarks: json['remarks'],
     );
   }
