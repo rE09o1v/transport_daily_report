@@ -18,14 +18,22 @@ class _HomeScreenState extends State<HomeScreen> {
   // 各画面のホームボタンを表示/非表示にするためのフラグ
   final List<bool> _showFloatingActionButton = [false, false, false, false];
   
+  // 各画面の参照を保持
+  final List<GlobalKey<State>> _screenKeys = [
+    GlobalKey<VisitListScreenState>(),
+    GlobalKey<State>(),
+    GlobalKey<State>(),
+    GlobalKey<State>(),
+  ];
+  
   @override
   Widget build(BuildContext context) {
     // タブに応じて表示する画面
     final List<Widget> screens = [
-      const VisitListScreen(),
-      const ClientListScreen(),
-      const RollCallListScreen(),
-      const HistoryScreen(),
+      VisitListScreen(key: _screenKeys[0]),
+      ClientListScreen(key: _screenKeys[1]),
+      RollCallListScreen(key: _screenKeys[2]),
+      HistoryScreen(key: _screenKeys[3]),
     ];
     
     void onItemTapped(int index) {
@@ -62,12 +70,21 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       floatingActionButton: _selectedIndex < 2 ? FloatingActionButton(
         heroTag: 'homeScreenFAB',
-        onPressed: () {
-          // 新規訪問記録画面に遷移
-          Navigator.push(
+        onPressed: () async {
+          // 新規訪問記録画面に遷移し、結果を待機
+          final result = await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const VisitEntryScreen()),
           );
+          
+          // 訪問記録が登録された場合（result=true）
+          if (result == true && _selectedIndex == 0) {
+            // VisitListScreen の更新メソッドを呼び出す
+            final visitListState = _screenKeys[0].currentState;
+            if (visitListState != null && visitListState is VisitListScreenState) {
+              visitListState.refreshData();
+            }
+          }
         },
         child: const Icon(Icons.add),
       ) : null,

@@ -13,10 +13,11 @@ class VisitListScreen extends StatefulWidget {
   const VisitListScreen({super.key});
 
   @override
-  _VisitListScreenState createState() => _VisitListScreenState();
+  VisitListScreenState createState() => VisitListScreenState();
 }
 
-class _VisitListScreenState extends State<VisitListScreen> {
+// StateクラスをpublicにしてHomeScreenからアクセスできるようにする
+class VisitListScreenState extends State<VisitListScreen> {
   final StorageService _storageService = StorageService();
   final PdfService _pdfService = PdfService();
   
@@ -57,6 +58,11 @@ class _VisitListScreenState extends State<VisitListScreen> {
     _startMileageController.dispose();
     _endMileageController.dispose();
     super.dispose();
+  }
+  
+  // 外部から呼び出せるようにデータを更新するメソッド
+  void refreshData() {
+    _loadVisitRecords();
   }
   
   // 走行距離の差分を更新
