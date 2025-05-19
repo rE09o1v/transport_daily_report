@@ -171,18 +171,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 ],
                               ),
                               const Divider(),
-                              // アルコール検出値セクション
-                              if (record.morningAlcoholValue != null || record.eveningAlcoholValue != null)
-                                Container(
-                                  padding: const EdgeInsets.only(top: 8, bottom: 12),
-                                  child: Row(
-                                    children: [
-                                      const Icon(Icons.local_drink, size: 16),
-                                      const SizedBox(width: 8),
-                                      const Text('アルコール検出記録あり'),
-                                    ],
-                                  ),
-                                ),
                               // 走行距離セクション
                               if (record.startMileage != null || record.endMileage != null)
                                 Container(
@@ -254,64 +242,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     child: ListView(
                       controller: scrollController,
                       children: [
-                        // アルコール検出値セクション
-                        Card(
-                          margin: const EdgeInsets.only(bottom: 16),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'アルコール検出値',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text('朝の検出値'),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          record.morningAlcoholValue != null 
-                                              ? '${record.morningAlcoholValue!.toStringAsFixed(2)} mg/L' 
-                                              : '未測定',
-                                          style: const TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text('夜の検出値'),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          record.eveningAlcoholValue != null 
-                                              ? '${record.eveningAlcoholValue!.toStringAsFixed(2)} mg/L' 
-                                              : '未測定',
-                                          style: const TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        
                         // 走行距離情報セクション
                         Card(
                           margin: const EdgeInsets.only(bottom: 16),

@@ -161,6 +161,51 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
     }
   }
 
+  // 得意先の削除確認ダイアログを表示
+  void _showDeleteConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('得意先を削除'),
+        content: Text('${_client.name}を削除してもよろしいですか？この操作は元に戻せません。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteClient();
+            },
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 得意先の削除
+  Future<void> _deleteClient() async {
+    try {
+      await _storageService.deleteClient(_client.id);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('得意先を削除しました')),
+      );
+      
+      // 得意先一覧画面に戻る（更新フラグをtrueに設定）
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('得意先の削除に失敗しました: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -171,6 +216,12 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
             icon: const Icon(Icons.edit),
             onPressed: _showEditClientDialog,
             tooltip: '編集',
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete),
+            onPressed: _showDeleteConfirmation,
+            tooltip: '削除',
+            color: Colors.red,
           ),
         ],
       ),
@@ -347,6 +398,23 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                   ),
                 ),
               ),
+              
+            const SizedBox(height: 32),
+              
+            // 削除ボタン
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _showDeleteConfirmation,
+                icon: const Icon(Icons.delete, color: Colors.red),
+                label: const Text('得意先を削除', style: TextStyle(color: Colors.red)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.red),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
           ],
         ),
       ),
