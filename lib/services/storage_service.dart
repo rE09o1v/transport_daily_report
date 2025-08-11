@@ -5,14 +5,12 @@ import 'dart:async'; // Completerのためのimport
 
 // Webプラットフォーム対応
 import 'dart:io';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 import 'package:transport_daily_report/models/visit_record.dart';
 import 'package:transport_daily_report/models/client.dart';
 import 'package:transport_daily_report/models/daily_record.dart';
 import 'package:transport_daily_report/models/roll_call_record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:async/async.dart';
 
 class StorageService {
   static const String _visitRecordsFileName = 'visit_records.json';

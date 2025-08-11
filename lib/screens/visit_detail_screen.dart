@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:transport_daily_report/models/visit_record.dart';
 import 'package:transport_daily_report/services/storage_service.dart';
+import 'package:transport_daily_report/screens/location_map_picker_screen.dart';
 
 class VisitDetailScreen extends StatefulWidget {
   final VisitRecord visitRecord;
@@ -155,6 +157,32 @@ class _VisitDetailScreenState extends State<VisitDetailScreen> {
       return '経度は-180から180の範囲で入力してください';
     }
     return null;
+  }
+
+  // マップピッカーを開く
+  Future<void> _openMapPicker() async {
+    final currentLat = widget.visitRecord.latitude;
+    final currentLng = widget.visitRecord.longitude;
+    
+    final initialPosition = (currentLat != null && currentLng != null)
+        ? LatLng(currentLat, currentLng)
+        : null;
+
+    final selectedPosition = await Navigator.of(context).push<LatLng>(
+      MaterialPageRoute(
+        builder: (context) => LocationMapPickerScreen(
+          initialPosition: initialPosition,
+        ),
+      ),
+    );
+
+    if (selectedPosition != null && mounted) {
+      // 選択された座標を入力フィールドに反映
+      setState(() {
+        _latitudeController.text = selectedPosition.latitude.toStringAsFixed(6);
+        _longitudeController.text = selectedPosition.longitude.toStringAsFixed(6);
+      });
+    }
   }
 
   @override
@@ -361,6 +389,20 @@ class _VisitDetailScreenState extends State<VisitDetailScreen> {
                                       ),
                                       keyboardType: TextInputType.numberWithOptions(decimal: true),
                                       validator: _validateLongitude,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        onPressed: _openMapPicker,
+                                        icon: const Icon(Icons.map),
+                                        label: const Text('地図で選択'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.green,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(vertical: 12),
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ),
