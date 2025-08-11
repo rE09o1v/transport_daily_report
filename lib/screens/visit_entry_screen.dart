@@ -197,56 +197,59 @@ class _VisitEntryScreenState extends State<VisitEntryScreen> {
       return;
     }
 
-    // 保存前に位置情報を再取得
-    Position? saveTimePosition;
     setState(() => _isLoading = true);
 
     try {
-      saveTimePosition = await _locationService.getCurrentLocation();
-      debugPrint('保存時の位置取得成功: ${saveTimePosition?.latitude}, ${saveTimePosition?.longitude}');
-    } catch (locationError) {
-      debugPrint('保存時の位置取得に失敗、初期位置を使用: $locationError');
-      saveTimePosition = _currentPosition;
-    }
-
-    if (mounted) {
-      setState(() => _isLoading = false);
-      
-      // 位置情報確認ダイアログを表示
-      final shouldSave = await _showLocationConfirmDialog(saveTimePosition);
-      if (!shouldSave) {
-        return; // ユーザーがキャンセルした場合
+      // 現在位置を取得
+      Position? currentPosition;
+      try {
+        currentPosition = await _locationService.getCurrentLocation();
+        debugPrint('保存時の位置取得成功: ${currentPosition?.latitude}, ${currentPosition?.longitude}');
+      } catch (locationError) {
+        debugPrint('保存時の位置取得に失敗: $locationError');
+        // 位置取得に失敗してもアプリを継続
+        currentPosition = null;
       }
-    }
 
-    setState(() => _isLoading = true);
+      // 得意先を検索またはclientIdを取得
+      String clientId = '';
+      final clients = await _storageService.loadClients();
+      final existingClient = clients.where((c) => c.name == _clientNameController.text).firstOrNull;
+      
+      if (existingClient != null) {
+        // 既存得意先の場合：座標は更新しない
+        clientId = existingClient.id;
+        debugPrint('既存得意先を使用: ${_clientNameController.text}');
+      } else {
+        // 新規得意先を登録（現在位置の座標を保存）
+        clientId = DateTime.now().millisecondsSinceEpoch.toString();
+        final newClient = Client(
+          id: clientId,
+          name: _clientNameController.text,
+          latitude: currentPosition?.latitude,
+          longitude: currentPosition?.longitude,
+        );
+        await _storageService.addClient(newClient);
+        debugPrint('新規得意先を座標付きで登録: ${_clientNameController.text} (${currentPosition?.latitude}, ${currentPosition?.longitude})');
+      }
 
-    try {
-      // 既に取得済みのsaveTimePositionを使用
-
-      // 新しい訪問記録を作成（保存時の位置情報を使用）
+      // 新しい訪問記録を作成（座標情報なし）
       final newRecord = VisitRecord(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
+        clientId: clientId,
         clientName: _clientNameController.text,
         arrivalTime: _selectedTime,
         notes: _notesController.text.isEmpty ? null : _notesController.text,
-        latitude: saveTimePosition?.latitude,
-        longitude: saveTimePosition?.longitude,
       );
 
       // 訪問記録を保存
       await _storageService.addVisitRecord(newRecord);
-      
-      // 顧客情報が存在しない場合、新規登録（同じ位置情報を使用）
-      await _saveClientIfNeeded(saveTimePosition);
 
-      // 保存が完了したら前の画面に戻る - 更新フラグをtrueに設定
+      // 保存が完了したら前の画面に戻る
       if (mounted) {
-        final positionText = saveTimePosition != null 
-            ? '位置情報付きで' 
-            : '位置情報なしで';
+        final positionText = currentPosition != null ? '位置情報付きで' : '';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('訪問記録を$positionText保存しました')),
+          SnackBar(content: Text('訪問記録を${positionText}保存しました')),
         );
         Navigator.of(context).pop(true);
       }
@@ -263,30 +266,6 @@ class _VisitEntryScreenState extends State<VisitEntryScreen> {
     }
   }
 
-  Future<void> _saveClientIfNeeded(Position? saveTimePosition) async {
-    try {
-      final clients = await _storageService.loadClients();
-      final clientName = _clientNameController.text;
-      
-      // 同じ名前の顧客が存在するかチェック
-      final existingClient = clients.any((client) => client.name == clientName);
-      
-      if (!existingClient) {
-        // 新規顧客を登録（保存時の位置情報を使用）
-        final newClient = Client(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          name: clientName,
-          latitude: saveTimePosition?.latitude,
-          longitude: saveTimePosition?.longitude,
-        );
-        
-        await _storageService.addClient(newClient);
-        debugPrint('新規顧客を登録しました: $clientName (${saveTimePosition?.latitude}, ${saveTimePosition?.longitude})');
-      }
-    } catch (e) {
-      debugPrint('顧客情報の保存に失敗しました: $e');
-    }
-  }
 
   void _selectClient(Client client) {
     setState(() {
@@ -350,7 +329,7 @@ class _VisitEntryScreenState extends State<VisitEntryScreen> {
                   ),
                   if (_currentPosition != null)
                     Text(
-                      '緯度: ${_currentPosition!.latitude.toStringAsFixed(6)}\n経度: ${_currentPosition!.longitude.toStringAsFixed(6)}',
+                      '現在位置: ${_currentPosition!.latitude.toStringAsFixed(6)}, ${_currentPosition!.longitude.toStringAsFixed(6)}',
                       style: const TextStyle(
                         fontSize: 12,
                         color: Colors.grey,

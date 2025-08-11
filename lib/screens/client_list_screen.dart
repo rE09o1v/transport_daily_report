@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:transport_daily_report/models/client.dart';
 import 'package:transport_daily_report/screens/client_detail_screen.dart';
+import 'package:transport_daily_report/screens/location_map_picker_screen.dart';
 import 'package:transport_daily_report/screens/visit_entry_screen.dart';
 import 'package:transport_daily_report/services/storage_service.dart';
 
@@ -85,6 +87,9 @@ class _ClientListScreenState extends State<ClientListScreen> {
     final nameController = TextEditingController();
     final addressController = TextEditingController();
     final phoneController = TextEditingController();
+    final latitudeController = TextEditingController();
+    final longitudeController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
 
     showDialog(
       context: context,
@@ -118,6 +123,92 @@ class _ClientListScreenState extends State<ClientListScreen> {
                 ),
                 keyboardType: TextInputType.phone,
               ),
+              const SizedBox(height: 16),
+              const Text(
+                '位置情報（任意）',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Form(
+                key: formKey,
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: latitudeController,
+                      decoration: const InputDecoration(
+                        labelText: '緯度',
+                        hintText: '例: 35.681236',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.location_on),
+                      ),
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                      validator: (value) {
+                        if (value != null && value.isNotEmpty) {
+                          final lat = double.tryParse(value);
+                          if (lat == null) {
+                            return '有効な数値を入力してください';
+                          }
+                          if (lat < -90 || lat > 90) {
+                            return '緯度は-90から90の範囲で入力してください';
+                          }
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: longitudeController,
+                      decoration: const InputDecoration(
+                        labelText: '経度',
+                        hintText: '例: 139.767125',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.location_on),
+                      ),
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                      validator: (value) {
+                        if (value != null && value.isNotEmpty) {
+                          final lng = double.tryParse(value);
+                          if (lng == null) {
+                            return '有効な数値を入力してください';
+                          }
+                          if (lng < -180 || lng > 180) {
+                            return '経度は-180から180の範囲で入力してください';
+                          }
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final selectedPosition = await Navigator.of(context).push<LatLng>(
+                            MaterialPageRoute(
+                              builder: (context) => const LocationMapPickerScreen(),
+                            ),
+                          );
+                          if (selectedPosition != null) {
+                            latitudeController.text = selectedPosition.latitude.toStringAsFixed(6);
+                            longitudeController.text = selectedPosition.longitude.toStringAsFixed(6);
+                          }
+                        },
+                        icon: const Icon(Icons.map),
+                        label: const Text('地図で選択'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -136,11 +227,28 @@ class _ClientListScreenState extends State<ClientListScreen> {
                 return;
               }
 
+              // 座標のバリデーション
+              if (!formKey.currentState!.validate()) {
+                return;
+              }
+
+              // 座標の解析
+              double? latitude;
+              double? longitude;
+              if (latitudeController.text.isNotEmpty) {
+                latitude = double.tryParse(latitudeController.text);
+              }
+              if (longitudeController.text.isNotEmpty) {
+                longitude = double.tryParse(longitudeController.text);
+              }
+
               final newClient = Client(
                 id: DateTime.now().millisecondsSinceEpoch.toString(),
                 name: name,
                 address: addressController.text.isEmpty ? null : addressController.text,
                 phoneNumber: phoneController.text.isEmpty ? null : phoneController.text,
+                latitude: latitude,
+                longitude: longitude,
               );
 
               await _storageService.addClient(newClient);
@@ -206,9 +314,21 @@ class _ClientListScreenState extends State<ClientListScreen> {
                             ),
                             child: ListTile(
                               title: Text(client.name),
-                              subtitle: client.address != null
-                                  ? Text(client.address!)
-                                  : null,
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (client.address != null)
+                                    Text(client.address!),
+                                  if (client.latitude != null && client.longitude != null)
+                                    Text(
+                                      '📍 ${client.latitude!.toStringAsFixed(6)}, ${client.longitude!.toStringAsFixed(6)}',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                ],
+                              ),
                               trailing: IconButton(
                                 icon: const Icon(Icons.add_circle),
                                 onPressed: () => _createVisitRecord(client),

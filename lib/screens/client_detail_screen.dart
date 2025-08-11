@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:transport_daily_report/models/client.dart';
 import 'package:transport_daily_report/services/storage_service.dart';
+import 'package:transport_daily_report/screens/location_map_picker_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ClientDetailScreen extends StatefulWidget {
@@ -15,11 +17,29 @@ class ClientDetailScreen extends StatefulWidget {
 class _ClientDetailScreenState extends State<ClientDetailScreen> {
   late Client _client;
   final StorageService _storageService = StorageService();
+  final _latitudeController = TextEditingController();
+  final _longitudeController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  
+  bool _isEditingLocation = false;
+  bool _isSavingLocation = false;
 
   @override
   void initState() {
     super.initState();
     _client = widget.client;
+    // 位置情報の初期値を設定
+    if (_client.latitude != null && _client.longitude != null) {
+      _latitudeController.text = _client.latitude!.toStringAsFixed(6);
+      _longitudeController.text = _client.longitude!.toStringAsFixed(6);
+    }
+  }
+
+  @override
+  void dispose() {
+    _latitudeController.dispose();
+    _longitudeController.dispose();
+    super.dispose();
   }
 
   // Google Mapで住所を検索
@@ -131,6 +151,104 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
     );
   }
 
+  // 位置情報更新機能
+  Future<void> _updateLocationInfo() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() => _isSavingLocation = true);
+
+    try {
+      final updatedLatitude = double.tryParse(_latitudeController.text);
+      final updatedLongitude = double.tryParse(_longitudeController.text);
+
+      final updatedClient = Client(
+        id: _client.id,
+        name: _client.name,
+        address: _client.address,
+        phoneNumber: _client.phoneNumber,
+        latitude: updatedLatitude,
+        longitude: updatedLongitude,
+      );
+
+      await _updateClient(updatedClient);
+
+      if (mounted) {
+        setState(() {
+          _isEditingLocation = false;
+          _isSavingLocation = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('位置情報を更新しました')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSavingLocation = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('更新に失敗しました: $e')),
+        );
+      }
+    }
+  }
+
+  // 緯度バリデーション
+  String? _validateLatitude(String? value) {
+    if (value == null || value.isEmpty) {
+      return '緯度を入力してください';
+    }
+    final lat = double.tryParse(value);
+    if (lat == null) {
+      return '有効な数値を入力してください';
+    }
+    if (lat < -90 || lat > 90) {
+      return '緯度は-90から90の範囲で入力してください';
+    }
+    return null;
+  }
+
+  // 経度バリデーション
+  String? _validateLongitude(String? value) {
+    if (value == null || value.isEmpty) {
+      return '経度を入力してください';
+    }
+    final lng = double.tryParse(value);
+    if (lng == null) {
+      return '有効な数値を入力してください';
+    }
+    if (lng < -180 || lng > 180) {
+      return '経度は-180から180の範囲で入力してください';
+    }
+    return null;
+  }
+
+  // マップピッカーを開く
+  Future<void> _openMapPicker() async {
+    final currentLat = _client.latitude;
+    final currentLng = _client.longitude;
+    
+    final initialPosition = (currentLat != null && currentLng != null)
+        ? LatLng(currentLat, currentLng)
+        : null;
+
+    final selectedPosition = await Navigator.of(context).push<LatLng>(
+      MaterialPageRoute(
+        builder: (context) => LocationMapPickerScreen(
+          initialPosition: initialPosition,
+        ),
+      ),
+    );
+
+    if (selectedPosition != null && mounted) {
+      // 選択された座標を入力フィールドに反映
+      setState(() {
+        _latitudeController.text = selectedPosition.latitude.toStringAsFixed(6);
+        _longitudeController.text = selectedPosition.longitude.toStringAsFixed(6);
+      });
+    }
+  }
+
   // 得意先情報を更新
   Future<void> _updateClient(Client updatedClient) async {
     try {
@@ -212,6 +330,16 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
       appBar: AppBar(
         title: const Text('得意先詳細'),
         actions: [
+          if (_client.latitude != null && _client.longitude != null)
+            IconButton(
+              icon: Icon(_isEditingLocation ? Icons.close : Icons.edit_location),
+              onPressed: _isSavingLocation ? null : () {
+                setState(() {
+                  _isEditingLocation = !_isEditingLocation;
+                });
+              },
+              tooltip: _isEditingLocation ? '位置編集をキャンセル' : '位置情報を編集',
+            ),
           IconButton(
             icon: const Icon(Icons.edit),
             onPressed: _showEditClientDialog,
@@ -373,27 +501,99 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.gps_fixed, color: Colors.blue),
-                          const SizedBox(width: 8),
                           const Text(
                             '位置情報',
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
                               color: Colors.grey,
                             ),
                           ),
+                          const Spacer(),
+                          if (_isEditingLocation && !_isSavingLocation)
+                            Row(
+                              children: [
+                                TextButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _isEditingLocation = false;
+                                      // 元の値にリセット
+                                      _latitudeController.text = _client.latitude!.toStringAsFixed(6);
+                                      _longitudeController.text = _client.longitude!.toStringAsFixed(6);
+                                    });
+                                  },
+                                  child: const Text('キャンセル'),
+                                ),
+                                const SizedBox(width: 8),
+                                ElevatedButton(
+                                  onPressed: _updateLocationInfo,
+                                  child: const Text('保存'),
+                                ),
+                              ],
+                            ),
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        '緯度: ${_client.latitude!.toStringAsFixed(6)}',
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '経度: ${_client.longitude!.toStringAsFixed(6)}',
-                        style: const TextStyle(fontSize: 16),
-                      ),
+                      if (_isSavingLocation)
+                        const Center(child: CircularProgressIndicator())
+                      else if (_isEditingLocation)
+                        Form(
+                          key: _formKey,
+                          child: Column(
+                            children: [
+                              TextFormField(
+                                controller: _latitudeController,
+                                decoration: const InputDecoration(
+                                  labelText: '緯度',
+                                  hintText: '例: 35.681236',
+                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.location_on),
+                                ),
+                                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                validator: _validateLatitude,
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _longitudeController,
+                                decoration: const InputDecoration(
+                                  labelText: '経度',
+                                  hintText: '例: 139.767125',
+                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.location_on),
+                                ),
+                                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                validator: _validateLongitude,
+                              ),
+                              const SizedBox(height: 16),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: _openMapPicker,
+                                  icon: const Icon(Icons.map),
+                                  label: const Text('地図で選択'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        Row(
+                          children: [
+                            const Icon(Icons.gps_fixed, size: 20, color: Colors.blue),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                '緯度: ${_client.latitude!.toStringAsFixed(6)}\n経度: ${_client.longitude!.toStringAsFixed(6)}',
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),

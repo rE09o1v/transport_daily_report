@@ -281,18 +281,6 @@ class StorageService {
     await saveVisitRecords(records);
   }
 
-  // 訪問記録を更新
-  Future<void> updateVisitRecord(VisitRecord updatedRecord) async {
-    final records = await loadVisitRecords();
-    final index = records.indexWhere((record) => record.id == updatedRecord.id);
-    
-    if (index != -1) {
-      records[index] = updatedRecord;
-      await saveVisitRecords(records);
-    } else {
-      throw Exception('訪問記録が見つかりません: ${updatedRecord.id}');
-    }
-  }
 
   // 顧客情報を削除
   Future<void> deleteClient(String id) async {
