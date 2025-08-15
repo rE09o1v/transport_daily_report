@@ -5,6 +5,7 @@ import 'package:transport_daily_report/screens/client_detail_screen.dart';
 import 'package:transport_daily_report/screens/location_map_picker_screen.dart';
 import 'package:transport_daily_report/screens/visit_entry_screen.dart';
 import 'package:transport_daily_report/services/storage_service.dart';
+import 'package:transport_daily_report/utils/ui_components.dart';
 
 class ClientListScreen extends StatefulWidget {
   const ClientListScreen({super.key});
@@ -273,24 +274,24 @@ class _ClientListScreenState extends State<ClientListScreen> {
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: _showAddClientDialog,
+            tooltip: '新規得意先登録',
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadClients,
+            tooltip: 'リスト更新',
           ),
         ],
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              decoration: const InputDecoration(
-                labelText: '検索',
-                hintText: '得意先名または住所を入力',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
-              ),
+          // 検索バー
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: ModernTextField(
+              label: '得意先を検索',
+              hint: '得意先名または住所を入力してください',
+              prefixIcon: Icons.search,
               onChanged: (value) {
                 setState(() {
                   _searchQuery = value;
@@ -298,42 +299,75 @@ class _ClientListScreenState extends State<ClientListScreen> {
               },
             ),
           ),
+          
+          // 検索結果サマリー
+          if (_searchQuery.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                '検索結果: ${filteredClients.length}件',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          
+          // 得意先リスト
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const ModernLoadingIndicator(message: '得意先リストを読み込み中...')
                 : filteredClients.isEmpty
-                    ? const Center(child: Text('登録されている得意先はありません'))
+                    ? _buildEmptyState()
                     : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
                         itemCount: filteredClients.length,
                         itemBuilder: (context, index) {
                           final client = filteredClients[index];
-                          return Card(
-                            margin: const EdgeInsets.symmetric(
-                              horizontal: 16.0,
-                              vertical: 8.0,
-                            ),
-                            child: ListTile(
-                              title: Text(client.name),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (client.address != null)
-                                    Text(client.address!),
-                                  if (client.latitude != null && client.longitude != null)
-                                    Text(
-                                      '📍 ${client.latitude!.toStringAsFixed(6)}, ${client.longitude!.toStringAsFixed(6)}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
+                          return AnimatedListItem(
+                            index: index,
+                            child: ActionListCard(
+                              title: client.name,
+                              subtitle: _buildClientSubtitle(client),
+                              leading: _buildClientAvatar(client),
+                              actions: [
+                                IconButton(
+                                  icon: const Icon(Icons.add_location),
+                                  tooltip: '訪問記録作成',
+                                  onPressed: () => _createVisitRecord(client),
+                                ),
+                                PopupMenuButton<String>(
+                                  onSelected: (value) {
+                                    if (value == 'detail') {
+                                      _viewClientDetail(client);
+                                    } else if (value == 'visit') {
+                                      _createVisitRecord(client);
+                                    }
+                                  },
+                                  itemBuilder: (context) => [
+                                    const PopupMenuItem(
+                                      value: 'detail',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.info_outline),
+                                          SizedBox(width: 8),
+                                          Text('詳細を見る'),
+                                        ],
                                       ),
                                     ),
-                                ],
-                              ),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.add_circle),
-                                onPressed: () => _createVisitRecord(client),
-                                tooltip: 'この得意先で訪問記録を登録',
-                              ),
+                                    const PopupMenuItem(
+                                      value: 'visit',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.add_location),
+                                          SizedBox(width: 8),
+                                          Text('訪問記録作成'),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                               onTap: () => _viewClientDetail(client),
                             ),
                           );
@@ -341,6 +375,82 @@ class _ClientListScreenState extends State<ClientListScreen> {
                       ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showAddClientDialog,
+        icon: const Icon(Icons.add),
+        label: const Text('新規登録'),
+      ),
+    );
+  }
+
+  /// 空の状態表示
+  Widget _buildEmptyState() {
+    if (_searchQuery.isNotEmpty) {
+      return EmptyStateWidget(
+        icon: Icons.search_off,
+        title: '検索結果がありません',
+        subtitle: '「$_searchQuery」に一致する得意先が見つかりません',
+        action: SecondaryActionButton(
+          text: '検索をクリア',
+          onPressed: () {
+            setState(() {
+              _searchQuery = '';
+            });
+          },
+        ),
+      );
+    } else {
+      return EmptyStateWidget(
+        icon: Icons.business_center,
+        title: '得意先が登録されていません',
+        subtitle: '最初の得意先を登録してください',
+        action: PrimaryActionButton(
+          text: '新規登録',
+          icon: Icons.add,
+          onPressed: _showAddClientDialog,
+        ),
+      );
+    }
+  }
+
+  /// 得意先のサブタイトル文字列を構築
+  String _buildClientSubtitle(Client client) {
+    final parts = <String>[];
+    
+    if (client.address != null) {
+      parts.add(client.address!);
+    }
+    
+    if (client.phoneNumber != null) {
+      parts.add('📞 ${client.phoneNumber!}');
+    }
+    
+    if (client.latitude != null && client.longitude != null) {
+      parts.add('📍 座標情報あり');
+    }
+    
+    return parts.isNotEmpty ? parts.join('\n') : '詳細情報なし';
+  }
+
+  /// 得意先のアバターを構築
+  Widget _buildClientAvatar(Client client) {
+    final hasLocation = client.latitude != null && client.longitude != null;
+    
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: hasLocation 
+            ? Theme.of(context).colorScheme.primaryContainer
+            : Theme.of(context).colorScheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(
+        hasLocation ? Icons.location_on : Icons.business,
+        color: hasLocation 
+            ? Theme.of(context).colorScheme.onPrimaryContainer
+            : Theme.of(context).colorScheme.onSurfaceVariant,
       ),
     );
   }

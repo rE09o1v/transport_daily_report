@@ -3,6 +3,7 @@ import 'package:transport_daily_report/models/roll_call_record.dart';
 import 'package:transport_daily_report/screens/roll_call_screen.dart';
 import 'package:transport_daily_report/services/storage_service.dart';
 import 'package:transport_daily_report/services/pdf_service.dart';
+import 'package:transport_daily_report/utils/ui_components.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -205,7 +206,6 @@ class _RollCallListScreenState extends State<RollCallListScreen> {
       appBar: AppBar(
         title: const Text('点呼記録'),
         actions: [
-          // PDF出力ボタン
           IconButton(
             onPressed: _isGeneratingPdf ? null : _generateAllRollCallPdf,
             icon: _isGeneratingPdf
@@ -223,202 +223,172 @@ class _RollCallListScreenState extends State<RollCallListScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const ModernLoadingIndicator(message: '点呼記録を読み込み中...')
           : _groupedRecords.isEmpty
-              ? const Center(child: Text('点呼記録がありません'))
-              : ListView.builder(
-                  itemCount: _groupedRecords.length,
-                  itemBuilder: (context, index) {
-                    final date = _groupedRecords.keys.elementAt(index);
-                    final records = _groupedRecords[date]!;
-                    
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                            DateFormat('yyyy年MM月dd日').format(date),
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.picture_as_pdf, size: 20),
-                                tooltip: 'この日の点呼記録をPDF出力',
-                                onPressed: _isGeneratingPdf 
-                                  ? null 
-                                  : () => _generatePdfForDate(date),
-                              ),
-                            ],
-                          ),
-                        ),
-                        ...records.map((record) => Dismissible(
-                          key: Key(record.id),
-                          background: Container(
-                            color: Colors.red,
-                            alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.only(right: 16.0),
-                            child: const Icon(Icons.delete, color: Colors.white),
-                          ),
-                          direction: DismissDirection.endToStart,
-                          confirmDismiss: (direction) async {
-                            return await showDialog<bool>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('確認'),
-                                content: Text('この点呼記録を削除しますか？\n\n日時: ${DateFormat('yyyy/MM/dd HH:mm').format(record.datetime)}\n種類: ${record.type == 'start' ? '始業点呼' : '終業点呼'}'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.of(context).pop(false),
-                                    child: const Text('キャンセル'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => Navigator.of(context).pop(true),
-                                    child: const Text('削除'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                          onDismissed: (direction) async {
-                            await _storageService.deleteRollCallRecord(record.id);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('点呼記録を削除しました')),
-                            );
-                          },
-                          child: ListTile(
-                            leading: Icon(
-                              record.type == 'start' ? Icons.play_arrow : Icons.stop,
-                              color: record.type == 'start' ? Colors.green : Colors.red,
-                            ),
-                            title: Text(
-                              record.type == 'start' ? '始業点呼' : '終業点呼',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            subtitle: Text(
-                              '時刻: ${DateFormat('HH:mm').format(record.datetime)}\n'
-                              '点呼執行者: ${record.inspectorName}\n'
-                              '点呼方法: ${record.method}${record.method == 'その他' && record.otherMethodDetail != null ? ' (${record.otherMethodDetail})' : ''}\n'
-                              '酒気帯び: ${record.hasDrunkAlcohol ? '有' : '無'}${record.alcoholValue != null ? ' (検出値: ${record.alcoholValue!.toStringAsFixed(2)} mg/L)' : ''}',
-                            ),
-                            isThreeLine: true,
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => RollCallScreen(type: record.type),
-                                ),
-                              ).then((_) => _loadRollCallRecords());
-                            },
-                          ),
-                        )),
-                        const Divider(),
-                      ],
-                    );
-                  },
-                ),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton(
-            heroTag: 'startRollCall',
-            backgroundColor: Colors.green,
-            onPressed: () async {
-              final hasExisting = await _checkTodayRollCallExists('start');
-              if (hasExisting) {
-                // すでに本日の始業点呼がある場合は警告
-                if (!mounted) return;
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('警告'),
-                    content: const Text('本日の始業点呼はすでに記録されています。'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('キャンセル'),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const RollCallScreen(type: 'start'),
-                            ),
-                          ).then((_) => _loadRollCallRecords());
-                        },
-                        child: const Text('編集する'),
-                      ),
-                    ],
+              ? EmptyStateWidget(
+                  icon: Icons.assignment_outlined,
+                  title: '点呼記録がありません',
+                  subtitle: '新しい点呼記録を登録してください',
+                  action: PrimaryActionButton(
+                    text: '点呼記録作成',
+                    icon: Icons.add,
+                    onPressed: () => _navigateToRollCallScreen(),
                   ),
-                );
-              } else {
-                // 新規作成
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const RollCallScreen(type: 'start'),
-                  ),
-                ).then((_) => _loadRollCallRecords());
-              }
-            },
-            child: const Icon(Icons.play_arrow),
+                )
+              : _buildRecordList(),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _navigateToRollCallScreen(),
+        icon: const Icon(Icons.add),
+        label: const Text('新規記録'),
+      ),
+    );
+  }
+
+  /// 点呼記録画面への遷移
+  void _navigateToRollCallScreen() async {
+    // 今日の始業・終業点呼の存在チェック
+    final hasStartRollCall = await _checkTodayRollCallExists('start');
+    final hasEndRollCall = await _checkTodayRollCallExists('end');
+
+    if (!mounted) return;
+
+    // 点呼種別選択ダイアログを表示
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('点呼種別選択'),
+        content: const Text('作成する点呼記録の種別を選択してください'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('キャンセル'),
           ),
-          const SizedBox(height: 16),
-          FloatingActionButton(
-            heroTag: 'endRollCall',
-            backgroundColor: Colors.red,
-            onPressed: () async {
-              final hasExisting = await _checkTodayRollCallExists('end');
-              if (hasExisting) {
-                // すでに本日の終業点呼がある場合は警告
-                if (!mounted) return;
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('警告'),
-                    content: const Text('本日の終業点呼はすでに記録されています。'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('キャンセル'),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const RollCallScreen(type: 'end'),
-                            ),
-                          ).then((_) => _loadRollCallRecords());
-                        },
-                        child: const Text('編集する'),
-                      ),
-                    ],
-                  ),
-                );
-              } else {
-                // 新規作成
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const RollCallScreen(type: 'end'),
-                  ),
-                ).then((_) => _loadRollCallRecords());
-              }
+          ElevatedButton.icon(
+            onPressed: hasStartRollCall ? null : () {
+              Navigator.of(context).pop();
+              _navigateToRollCall('start');
             },
-            child: const Icon(Icons.stop),
+            icon: const Icon(Icons.play_arrow),
+            label: Text(hasStartRollCall ? '始業点呼（済）' : '始業点呼'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: hasEndRollCall ? null : () {
+              Navigator.of(context).pop();
+              _navigateToRollCall('end');
+            },
+            icon: const Icon(Icons.stop),
+            label: Text(hasEndRollCall ? '終業点呼（済）' : '終業点呼'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
           ),
         ],
       ),
     );
+  }
+
+  /// 特定の点呼種別での画面遷移
+  void _navigateToRollCall(String type) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RollCallScreen(type: type),
+      ),
+    ).then((_) => _loadRollCallRecords());
+  }
+
+  /// 点呼記録リストの構築
+  Widget _buildRecordList() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(8),
+      itemCount: _groupedRecords.length,
+      itemBuilder: (context, index) {
+        final date = _groupedRecords.keys.elementAt(index);
+        final records = _groupedRecords[date]!;
+        
+        return AnimatedListItem(
+          index: index,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 日付ヘッダーカード
+              ModernInfoCard(
+                title: DateFormat('yyyy年MM月dd日(E)', 'ja_JP').format(date),
+                subtitle: '${records.length}件の点呼記録',
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.secondaryContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.assignment,
+                    color: Theme.of(context).colorScheme.onSecondaryContainer,
+                  ),
+                ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.picture_as_pdf),
+                  tooltip: 'この日のPDF出力',
+                  onPressed: _isGeneratingPdf 
+                      ? null 
+                      : () => _generatePdfForDate(date),
+                ),
+              ),
+              
+              // 点呼記録リスト
+              ...records.map((record) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                child: ActionListCard(
+                  title: record.type == 'start' ? '始業点呼' : '終業点呼',
+                  subtitle: _buildRollCallSubtitle(record),
+                  leading: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: record.type == 'start' 
+                          ? Colors.green.withOpacity(0.1)
+                          : Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: record.type == 'start' ? Colors.green : Colors.red,
+                        width: 2,
+                      ),
+                    ),
+                    child: Icon(
+                      record.type == 'start' ? Icons.play_arrow : Icons.stop,
+                      color: record.type == 'start' ? Colors.green : Colors.red,
+                      size: 24,
+                    ),
+                  ),
+                  dismissible: true,
+                  onDismissed: () => _deleteRollCallRecord(record),
+                  onTap: () => _navigateToRollCall(record.type),
+                ),
+              )),
+              
+              if (index < _groupedRecords.length - 1)
+                const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// 点呼記録のサブタイトル構築
+  String _buildRollCallSubtitle(RollCallRecord record) {
+    final parts = <String>[
+      '時刻: ${DateFormat('HH:mm').format(record.datetime)}',
+      '点呼執行者: ${record.inspectorName}',
+      '点呼方法: ${record.method}${record.method == 'その他' && record.otherMethodDetail != null ? ' (${record.otherMethodDetail})' : ''}',
+      '酒気帯び: ${record.hasDrunkAlcohol ? '有' : '無'}${record.alcoholValue != null ? ' (${record.alcoholValue!.toStringAsFixed(2)} mg/L)' : ''}',
+    ];
+    
+    return parts.join('\n');
   }
 } 

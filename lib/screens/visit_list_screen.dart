@@ -3,9 +3,9 @@ import 'package:intl/intl.dart';
 import 'dart:io';
 import 'package:transport_daily_report/models/visit_record.dart';
 import 'package:transport_daily_report/screens/visit_detail_screen.dart';
-import 'package:transport_daily_report/screens/history_screen.dart';
 import 'package:transport_daily_report/services/storage_service.dart';
 import 'package:transport_daily_report/services/pdf_service.dart';
+import 'package:transport_daily_report/utils/ui_components.dart';
 import 'package:share_plus/share_plus.dart';
 
 class VisitListScreen extends StatefulWidget {
@@ -357,198 +357,11 @@ class VisitListScreenState extends State<VisitListScreen> {
         actions: _buildAppBarActions(),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const ModernLoadingIndicator(message: '訪問記録を読み込み中...')
           : Column(
               children: [
-                // 折りたたみ可能なパネルリスト
-                ExpansionPanelList(
-                  elevation: 1,
-                  expandedHeaderPadding: EdgeInsets.zero,
-                  dividerColor: Colors.grey.shade300,
-                  animationDuration: const Duration(milliseconds: 300),
-                  expansionCallback: (panelIndex, isExpanded) {
-                    setState(() {
-                      if (panelIndex == 0) {
-                        _mileagePanelExpanded = !_mileagePanelExpanded;
-                      }
-                      // パネル状態を保存
-                      _savePanelState();
-                    });
-                  },
-                  children: [
-                    // 走行距離入力パネル（2番目に表示）
-                    ExpansionPanel(
-                      headerBuilder: (context, isExpanded) {
-                        return ListTile(
-                          title: Row(
-                            children: [
-                              const Icon(Icons.directions_car),
-                              const SizedBox(width: 8),
-                              const Text(
-                                '走行距離記録',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              // 値が入力されていることを示すインジケータ
-                              if (_startMileageController.text.isNotEmpty || _endMileageController.text.isNotEmpty)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).primaryColor,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    '記録あり',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Theme.of(context).colorScheme.onPrimary,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        );
-                      },
-                      body: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16), // 上部パディングを追加
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // 走行距離入力（横並び）
-                              Row(
-                                children: [
-                                  // 出発時走行距離
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _startMileageController,
-                                      decoration: const InputDecoration(
-                                        labelText: '出発時走行距離',
-                                        hintText: '車両メーターの値',
-                                        suffixText: 'km',
-                                        border: OutlineInputBorder(),
-                                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16), // パディングを調整
-                                      ),
-                                      keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                      validator: (value) {
-                                        if (value != null && value.isNotEmpty) {
-                                          final mileage = double.tryParse(value);
-                                          if (mileage == null) {
-                                            return '有効な数値を入力してください';
-                                          }
-                                          if (mileage < 0) {
-                                            return '0以上の値を入力してください';
-                                          }
-                                        }
-                                        return null;
-                                      },
-                                      onChanged: (value) {
-                                        if (value.isNotEmpty && double.tryParse(value) != null) {
-                                          // 入力が有効な数値の場合、遅延をもって自動保存
-                                          Future.delayed(const Duration(milliseconds: 500), () {
-                                            if (_formKey.currentState?.validate() ?? false) {
-                                              _saveMileageData();
-                                            }
-                                          });
-                                        }
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  // 帰社時走行距離
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _endMileageController,
-                                      decoration: const InputDecoration(
-                                        labelText: '帰社時走行距離',
-                                        hintText: '車両メーターの値',
-                                        suffixText: 'km',
-                                        border: OutlineInputBorder(),
-                                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16), // パディングを調整
-                                      ),
-                                      keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                      validator: (value) {
-                                        if (value != null && value.isNotEmpty) {
-                                          final endMileage = double.tryParse(value);
-                                          if (endMileage == null) {
-                                            return '有効な数値を入力してください';
-                                          }
-                                          if (endMileage < 0) {
-                                            return '0以上の値を入力してください';
-                                          }
-                                          
-                                          // 出発時走行距離が入力されている場合は比較
-                                          if (_startMileageController.text.isNotEmpty) {
-                                            final startMileage = double.tryParse(_startMileageController.text);
-                                            if (startMileage != null && endMileage < startMileage) {
-                                              return '出発時より大きな値を入力してください';
-                                            }
-                                          }
-                                        }
-                                        return null;
-                                      },
-                                      onChanged: (value) {
-                                        if (value.isNotEmpty && double.tryParse(value) != null) {
-                                          // 入力が有効な数値の場合、遅延をもって自動保存
-                                          Future.delayed(const Duration(milliseconds: 500), () {
-                                            if (_formKey.currentState?.validate() ?? false) {
-                                              _saveMileageData();
-                                            }
-                                          });
-                                        }
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              // 走行距離の差分表示
-                              if (_distanceDifference.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 12.0, bottom: 8.0),
-                                  child: Text(
-                                    _distanceDifference,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: Theme.of(context).primaryColor,
-                                    ),
-                                  ),
-                                ),
-                              // 自動保存の説明
-                              Padding(
-                                padding: const EdgeInsets.only(top: 4.0, bottom: 8.0),
-                                child: Text(
-                                  '※ 入力すると自動で保存されます',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[600],
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                              ),
-                              // ボタン行
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  TextButton.icon(
-                                    onPressed: _resetMileageData,
-                                    icon: const Icon(Icons.refresh),
-                                    label: const Text('リセット'),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      isExpanded: _mileagePanelExpanded,
-                    ),
-                  ],
-                ),
+                // 走行距離記録カード
+                _buildMileageCard(),
                 
                 // 訪問記録リスト
                 Expanded(
@@ -564,46 +377,84 @@ class VisitListScreenState extends State<VisitListScreen> {
   Widget _buildSingleDateView(List<VisitRecord> records, DateFormat dateFormat, DateFormat timeFormat) {
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                dateFormat.format(_selectedDate),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                '訪問件数: ${records.length}',
-                style: const TextStyle(fontSize: 16),
-              ),
-            ],
+        // 日付ヘッダーカード
+        ModernInfoCard(
+          title: dateFormat.format(_selectedDate),
+          subtitle: '訪問件数: ${records.length}件',
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              Icons.event,
+              color: Theme.of(context).colorScheme.onSecondaryContainer,
+            ),
           ),
         ),
+        
+        // 訪問記録リスト
         Expanded(
           child: records.isEmpty
-              ? const Center(child: Text('この日の訪問記録はありません'))
+              ? EmptyStateWidget(
+                  icon: Icons.event_busy,
+                  title: 'この日の訪問記録はありません',
+                  subtitle: '新しい訪問記録を追加してください',
+                )
               : ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
                   itemCount: records.length,
                   itemBuilder: (context, index) {
                     final record = records[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 16.0,
-                        vertical: 8.0,
-                      ),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          child: Text(timeFormat.format(record.arrivalTime)),
+                    return AnimatedListItem(
+                      index: index,
+                      child: ActionListCard(
+                        title: record.clientName,
+                        subtitle: record.notes?.isNotEmpty == true 
+                            ? record.notes! 
+                            : '到着: ${timeFormat.format(record.arrivalTime)}',
+                        leading: Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                timeFormat.format(record.arrivalTime).split(':')[0],
+                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                timeFormat.format(record.arrivalTime).split(':')[1],
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        title: Text(record.clientName),
-                        subtitle: record.notes != null && record.notes!.isNotEmpty
-                            ? Text(record.notes!, maxLines: 1, overflow: TextOverflow.ellipsis)
-                            : null,
-                        trailing: const Icon(Icons.arrow_forward_ios),
+                        actions: [
+                          IconButton(
+                            icon: const Icon(Icons.location_on),
+                            onPressed: () {
+                              // 位置情報を表示する機能
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    '位置情報機能は今後実装予定です'
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                         onTap: () => _viewRecordDetail(record),
                       ),
                     );
@@ -615,78 +466,96 @@ class VisitListScreenState extends State<VisitListScreen> {
   }
 
   Widget _buildGroupedView(DateFormat dateFormat, DateFormat timeFormat) {
-    // 日付を新しい順に並べる
     final sortedDates = _groupedRecords.keys.toList()
       ..sort((a, b) => b.compareTo(a));
     
     if (sortedDates.isEmpty) {
-      return const Center(child: Text('訪問記録がありません'));
+      return EmptyStateWidget(
+        icon: Icons.event_busy,
+        title: '訪問記録がありません',
+        subtitle: '新しい訪問記録を追加してください',
+      );
     }
     
     return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       itemCount: sortedDates.length,
       itemBuilder: (context, dateIndex) {
         final date = sortedDates[dateIndex];
         final recordsForDate = _groupedRecords[date]!;
         
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(
-                left: 16.0, 
-                right: 16.0,
-                top: 16.0,
-                bottom: 8.0,
+        return AnimatedListItem(
+          index: dateIndex,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 日付ヘッダーカード
+              ModernInfoCard(
+                title: dateFormat.format(date),
+                subtitle: '${recordsForDate.length}件の訪問記録',
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.tertiaryContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.calendar_today,
+                    color: Theme.of(context).colorScheme.onTertiaryContainer,
+                  ),
+                ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    dateFormat.format(date),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+              
+              // 訪問記録リスト
+              ListView.builder(
+                physics: const NeverScrollableScrollPhysics(),
+                shrinkWrap: true,
+                itemCount: recordsForDate.length,
+                itemBuilder: (context, recordIndex) {
+                  final record = recordsForDate[recordIndex];
+                  return AnimatedListItem(
+                    index: recordIndex,
+                    delay: const Duration(milliseconds: 50),
+                    child: ActionListCard(
+                      title: record.clientName,
+                      subtitle: record.notes?.isNotEmpty == true 
+                          ? record.notes! 
+                          : '到着: ${timeFormat.format(record.arrivalTime)}',
+                      leading: Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              timeFormat.format(record.arrivalTime).split(':')[0],
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              timeFormat.format(record.arrivalTime).split(':')[1],
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      onTap: () => _viewRecordDetail(record),
                     ),
-                  ),
-                  Text(
-                    '${recordsForDate.length}件',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ],
+                  );
+                },
               ),
-            ),
-            ListView.builder(
-              physics: const NeverScrollableScrollPhysics(),
-              shrinkWrap: true,
-              itemCount: recordsForDate.length,
-              itemBuilder: (context, recordIndex) {
-                final record = recordsForDate[recordIndex];
-                return Card(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 4.0,
-                  ),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      child: Text(timeFormat.format(record.arrivalTime)),
-                    ),
-                    title: Text(record.clientName),
-                    subtitle: record.notes != null && record.notes!.isNotEmpty
-                        ? Text(record.notes!, maxLines: 1, overflow: TextOverflow.ellipsis)
-                        : null,
-                    trailing: const Icon(Icons.arrow_forward_ios),
-                    onTap: () => _viewRecordDetail(record),
-                  ),
-                );
-              },
-            ),
             if (dateIndex < sortedDates.length - 1)
               const Divider(height: 32, thickness: 1),
-          ],
+            ],
+          ),
         );
       },
     );
@@ -706,16 +575,6 @@ class VisitListScreenState extends State<VisitListScreen> {
       IconButton(
         icon: const Icon(Icons.picture_as_pdf),
         onPressed: _generateAndSharePdf,
-      ),
-      IconButton(
-        icon: const Icon(Icons.history),
-        tooltip: '履歴データ',
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const HistoryScreen()),
-          );
-        },
       ),
     ];
   }
@@ -740,5 +599,190 @@ class VisitListScreenState extends State<VisitListScreen> {
     } catch (e) {
       print('パネル状態の保存に失敗しました: $e');
     }
+  }
+
+  /// 走行距離記録用の現代的なカード
+  Widget _buildMileageCard() {
+    final hasData = _startMileageController.text.isNotEmpty || _endMileageController.text.isNotEmpty;
+    
+    return Column(
+      children: [
+        // ヘッダーカード
+        ModernInfoCard(
+          title: '走行距離記録',
+          subtitle: hasData ? '記録済み • ${_distanceDifference.isNotEmpty ? _distanceDifference : '計算中...'}' : '未入力',
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: hasData 
+                  ? Theme.of(context).colorScheme.primaryContainer
+                  : Theme.of(context).colorScheme.surfaceVariant,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              Icons.directions_car,
+              color: hasData 
+                  ? Theme.of(context).colorScheme.onPrimaryContainer
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          trailing: IconButton(
+            icon: Icon(_mileagePanelExpanded ? Icons.expand_less : Icons.expand_more),
+            onPressed: () {
+              setState(() {
+                _mileagePanelExpanded = !_mileagePanelExpanded;
+                _savePanelState();
+              });
+            },
+          ),
+          onTap: () {
+            setState(() {
+              _mileagePanelExpanded = !_mileagePanelExpanded;
+              _savePanelState();
+            });
+          },
+        ),
+        
+        // 拡張可能な入力フォーム
+        if (_mileagePanelExpanded)
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 出発時走行距離
+                    ModernTextField(
+                      label: '出発時走行距離',
+                      hint: '車両メーターの値',
+                      controller: _startMileageController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      suffixIcon: const Text('km'),
+                      validator: (value) {
+                        if (value != null && value.isNotEmpty) {
+                          final mileage = double.tryParse(value);
+                          if (mileage == null) {
+                            return '有効な数値を入力してください';
+                          }
+                          if (mileage < 0) {
+                            return '0以上の値を入力してください';
+                          }
+                        }
+                        return null;
+                      },
+                      onChanged: (value) {
+                        if (value.isNotEmpty && double.tryParse(value) != null) {
+                          Future.delayed(const Duration(milliseconds: 500), () {
+                            if (_formKey.currentState?.validate() ?? false) {
+                              _saveMileageData();
+                            }
+                          });
+                        }
+                      },
+                    ),
+                    
+                    const SizedBox(height: 12),
+                    
+                    // 帰社時走行距離
+                    ModernTextField(
+                      label: '帰社時走行距離',
+                      hint: '車両メーターの値',
+                      controller: _endMileageController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      suffixIcon: const Text('km'),
+                      validator: (value) {
+                        if (value != null && value.isNotEmpty) {
+                          final endMileage = double.tryParse(value);
+                          if (endMileage == null) {
+                            return '有効な数値を入力してください';
+                          }
+                          if (endMileage < 0) {
+                            return '0以上の値を入力してください';
+                          }
+                          
+                          // 出発時走行距離が入力されている場合は比較
+                          if (_startMileageController.text.isNotEmpty) {
+                            final startMileage = double.tryParse(_startMileageController.text);
+                            if (startMileage != null && endMileage < startMileage) {
+                              return '出発時より大きな値を入力してください';
+                            }
+                          }
+                        }
+                        return null;
+                      },
+                      onChanged: (value) {
+                        if (value.isNotEmpty && double.tryParse(value) != null) {
+                          Future.delayed(const Duration(milliseconds: 500), () {
+                            if (_formKey.currentState?.validate() ?? false) {
+                              _saveMileageData();
+                            }
+                          });
+                        }
+                      },
+                    ),
+                    
+                    // 走行距離の差分表示
+                    if (_distanceDifference.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.calculate,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _distanceDifference,
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    
+                    // 説明文とアクション
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '入力すると自動で保存されます',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                        SecondaryActionButton(
+                          text: 'リセット',
+                          icon: Icons.refresh,
+                          onPressed: _resetMileageData,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 } 
