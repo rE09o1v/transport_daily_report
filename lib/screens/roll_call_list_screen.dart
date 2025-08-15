@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
 import 'package:transport_daily_report/models/roll_call_record.dart';
 import 'package:transport_daily_report/screens/roll_call_screen.dart';
 import 'package:transport_daily_report/services/storage_service.dart';
@@ -6,6 +7,7 @@ import 'package:transport_daily_report/services/pdf_service.dart';
 import 'package:transport_daily_report/utils/ui_components.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
+import '../utils/period_selector_dialog.dart';
 
 class RollCallListScreen extends StatefulWidget {
   const RollCallListScreen({super.key});
@@ -200,15 +202,117 @@ class _RollCallListScreenState extends State<RollCallListScreen> {
     }
   }
 
+  // 期間指定PDF出力
+  Future<void> _generatePeriodPdf() async {
+    if (_groupedRecords.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('点呼記録がありません')),
+      );
+      return;
+    }
+
+    final selection = await showPeriodSelectorDialog(
+      context: context,
+      title: '点呼記録出力期間選択',
+    );
+
+    if (selection == null) return;
+
+    setState(() {
+      _isGeneratingPdf = true;
+    });
+
+    try {
+      File pdfFile;
+      String subject;
+
+      switch (selection.type) {
+        case PeriodType.daily:
+          pdfFile = await _pdfService.generateDailyRollCallReport(
+            _groupedRecords,
+            selection.startDate!,
+          );
+          subject = '点呼記録 ${DateFormat('yyyy/MM/dd').format(selection.startDate!)}';
+          break;
+        case PeriodType.monthly:
+          pdfFile = await _pdfService.generateMonthlyRollCallReport(
+            _groupedRecords,
+            selection.startDate!,
+          );
+          subject = '点呼記録 ${DateFormat('yyyy年MM月').format(selection.startDate!)}';
+          break;
+        case PeriodType.range:
+          pdfFile = await _pdfService.generatePeriodRollCallReport(
+            _groupedRecords,
+            selection.startDate!,
+            selection.endDate!,
+          );
+          subject = '点呼記録 ${selection.displayText}';
+          break;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _isGeneratingPdf = false;
+      });
+
+      // PDFファイルを共有する
+      await Share.shareXFiles(
+        [XFile(pdfFile.path)],
+        subject: subject,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isGeneratingPdf = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('PDFの生成に失敗しました: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('点呼記録'),
         actions: [
-          IconButton(
-            onPressed: _isGeneratingPdf ? null : _generateAllRollCallPdf,
-            icon: _isGeneratingPdf
+          PopupMenuButton<String>(
+            enabled: !_isGeneratingPdf,
+            onSelected: (value) {
+              switch (value) {
+                case 'all':
+                  _generateAllRollCallPdf();
+                  break;
+                case 'period':
+                  _generatePeriodPdf();
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'all',
+                child: Row(
+                  children: [
+                    Icon(Icons.picture_as_pdf, size: 20),
+                    SizedBox(width: 8),
+                    Text('全記録出力'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'period',
+                child: Row(
+                  children: [
+                    Icon(Icons.date_range, size: 20),
+                    SizedBox(width: 8),
+                    Text('期間指定出力'),
+                  ],
+                ),
+              ),
+            ],
+            child: _isGeneratingPdf
                 ? const SizedBox(
                     width: 24,
                     height: 24,
@@ -218,7 +322,6 @@ class _RollCallListScreenState extends State<RollCallListScreen> {
                     ),
                   )
                 : const Icon(Icons.picture_as_pdf),
-            tooltip: 'PDF出力',
           ),
         ],
       ),

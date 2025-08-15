@@ -7,6 +7,7 @@ import 'package:transport_daily_report/services/storage_service.dart';
 import 'package:transport_daily_report/services/pdf_service.dart';
 import 'package:transport_daily_report/utils/ui_components.dart';
 import 'package:share_plus/share_plus.dart';
+import '../utils/period_selector_dialog.dart';
 
 class VisitListScreen extends StatefulWidget {
   const VisitListScreen({super.key});
@@ -262,10 +263,7 @@ class VisitListScreenState extends State<VisitListScreen> {
         pdfFile = await _pdfService.generateMultiDayReport(_groupedRecords);
       } else {
         // 単一日付のデータでPDFを生成
-        pdfFile = await _pdfService.generateDailyReport(
-          _visitRecords,
-          _selectedDate,
-        );
+        pdfFile = await _pdfService.generateDailyReport(_visitRecords, _selectedDate);
       }
 
       // ファイルが存在するか確認
@@ -322,6 +320,113 @@ class VisitListScreenState extends State<VisitListScreen> {
         ),
       );
     }
+  }
+
+  // 期間指定PDF出力
+  Future<void> _generatePeriodPdf() async {
+    if (_groupedRecords.isEmpty && _visitRecords.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('訪問記録がありません')),
+      );
+      return;
+    }
+
+    final selection = await showPeriodSelectorDialog(
+      context: context,
+      title: '訪問記録出力期間選択',
+    );
+
+    if (selection == null) return;
+
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('PDFを生成中...')),
+      );
+
+      File pdfFile;
+      String subject;
+
+      // データの準備
+      final workingData = _groupedRecords.isNotEmpty ? _groupedRecords : _convertToGrouped(_visitRecords);
+
+      switch (selection.type) {
+        case PeriodType.daily:
+          pdfFile = await _pdfService.generateDailyVisitReport(workingData, selection.startDate!);
+          subject = '訪問記録 ${DateFormat('yyyy/MM/dd').format(selection.startDate!)}';
+          break;
+        case PeriodType.monthly:
+          pdfFile = await _pdfService.generateMonthlyVisitReport(workingData, selection.startDate!);
+          subject = '訪問記録 ${DateFormat('yyyy年MM月').format(selection.startDate!)}';
+          break;
+        case PeriodType.range:
+          pdfFile = await _pdfService.generatePeriodVisitReport(workingData, selection.startDate!, selection.endDate!);
+          subject = '訪問記録 ${selection.displayText}';
+          break;
+      }
+
+      // ファイルが存在するか確認
+      if (!await pdfFile.exists()) {
+        throw Exception('PDFファイルが正常に生成されませんでした');
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('PDFファイルを生成しました: ${pdfFile.path}'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+
+      // 共有するか確認
+      final shouldShare = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('PDFの共有'),
+          content: const Text('PDFファイルを他のアプリで共有しますか？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('キャンセル'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('共有する'),
+            ),
+          ],
+        ),
+      ) ?? false;
+
+      if (shouldShare) {
+        await Share.shareXFiles([XFile(pdfFile.path)], subject: subject);
+      }
+    } catch (e) {
+      final errorMessage = 'PDFの生成・共有に失敗しました: $e';
+      print(errorMessage);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 10),
+        ),
+      );
+    }
+  }
+
+  // 単一リストを日付別グループ化に変換するヘルパーメソッド
+  Map<DateTime, List<VisitRecord>> _convertToGrouped(List<VisitRecord> records) {
+    final Map<DateTime, List<VisitRecord>> grouped = {};
+    
+    for (final record in records) {
+      final date = DateTime(record.arrivalTime.year, record.arrivalTime.month, record.arrivalTime.day);
+      
+      if (!grouped.containsKey(date)) {
+        grouped[date] = [];
+      }
+      
+      grouped[date]!.add(record);
+    }
+    
+    return grouped;
   }
 
   void _toggleViewMode() {
@@ -572,9 +677,40 @@ class VisitListScreenState extends State<VisitListScreen> {
           _loadVisitRecords();
         },
       ),
-      IconButton(
-        icon: const Icon(Icons.picture_as_pdf),
-        onPressed: _generateAndSharePdf,
+      PopupMenuButton<String>(
+        onSelected: (value) {
+          switch (value) {
+            case 'all':
+              _generateAndSharePdf();
+              break;
+            case 'period':
+              _generatePeriodPdf();
+              break;
+          }
+        },
+        itemBuilder: (context) => [
+          const PopupMenuItem(
+            value: 'all',
+            child: Row(
+              children: [
+                Icon(Icons.picture_as_pdf, size: 20),
+                SizedBox(width: 8),
+                Text('全記録出力'),
+              ],
+            ),
+          ),
+          const PopupMenuItem(
+            value: 'period',
+            child: Row(
+              children: [
+                Icon(Icons.date_range, size: 20),
+                SizedBox(width: 8),
+                Text('期間指定出力'),
+              ],
+            ),
+          ),
+        ],
+        child: const Icon(Icons.picture_as_pdf),
       ),
     ];
   }

@@ -50,6 +50,102 @@ class PdfService {
 
   // ストレージ権限を確認・リクエスト
   Future<bool> _requestStoragePermission() async {
+
+  // 期間フィルタリング用のヘルパーメソッド
+  Map<DateTime, List<VisitRecord>> filterVisitRecordsByPeriod(
+    Map<DateTime, List<VisitRecord>> groupedRecords,
+    DateTime startDate,
+    DateTime endDate,
+  ) {
+    final Map<DateTime, List<VisitRecord>> filteredRecords = {};
+    
+    for (final entry in groupedRecords.entries) {
+      final date = entry.key;
+      // 日付が範囲内にあるかチェック
+      if (date.isAfter(startDate.subtract(const Duration(days: 1))) &&
+          date.isBefore(endDate.add(const Duration(days: 1)))) {
+        filteredRecords[date] = entry.value;
+      }
+    }
+    
+    return filteredRecords;
+  }
+
+  Map<DateTime, List<RollCallRecord>> filterRollCallRecordsByPeriod(
+    Map<DateTime, List<RollCallRecord>> groupedRecords,
+    DateTime startDate,
+    DateTime endDate,
+  ) {
+    final Map<DateTime, List<RollCallRecord>> filteredRecords = {};
+    
+    for (final entry in groupedRecords.entries) {
+      final date = entry.key;
+      // 日付が範囲内にあるかチェック
+      if (date.isAfter(startDate.subtract(const Duration(days: 1))) &&
+          date.isBefore(endDate.add(const Duration(days: 1)))) {
+        filteredRecords[date] = entry.value;
+      }
+    }
+    
+    return filteredRecords;
+  }
+
+  List<VisitRecord> filterVisitRecordsByDate(
+    List<VisitRecord> records,
+    DateTime targetDate,
+  ) {
+    return records.where((record) {
+      final recordDate = DateTime(
+        record.arrivalTime.year,
+        record.arrivalTime.month,
+        record.arrivalTime.day,
+      );
+      final target = DateTime(
+        targetDate.year,
+        targetDate.month,
+        targetDate.day,
+      );
+      return recordDate.isAtSameMomentAs(target);
+    }).toList();
+  }
+
+  List<RollCallRecord> filterRollCallRecordsByDate(
+    List<RollCallRecord> records,
+    DateTime targetDate,
+  ) {
+    return records.where((record) {
+      final recordDate = DateTime(
+        record.datetime.year,
+        record.datetime.month,
+        record.datetime.day,
+      );
+      final target = DateTime(
+        targetDate.year,
+        targetDate.month,
+        targetDate.day,
+      );
+      return recordDate.isAtSameMomentAs(target);
+    }).toList();
+  }
+
+  // 月別フィルタリング
+  Map<DateTime, List<VisitRecord>> filterVisitRecordsByMonth(
+    Map<DateTime, List<VisitRecord>> groupedRecords,
+    DateTime month,
+  ) {
+    final startOfMonth = DateTime(month.year, month.month, 1);
+    final endOfMonth = DateTime(month.year, month.month + 1, 0);
+    return filterVisitRecordsByPeriod(groupedRecords, startOfMonth, endOfMonth);
+  }
+
+  Map<DateTime, List<RollCallRecord>> filterRollCallRecordsByMonth(
+    Map<DateTime, List<RollCallRecord>> groupedRecords,
+    DateTime month,
+  ) {
+    final startOfMonth = DateTime(month.year, month.month, 1);
+    final endOfMonth = DateTime(month.year, month.month + 1, 0);
+    return filterRollCallRecordsByPeriod(groupedRecords, startOfMonth, endOfMonth);
+  }
     if (Platform.isAndroid) {
       // Android 13 (API 33)以降は特定のファイル権限が必要
       if (await Permission.manageExternalStorage.request().isGranted) {
@@ -992,233 +1088,152 @@ class PdfService {
     }
   }
 
-  // 複数日程の点呼記録を1枚にまとめたPDFレポートを生成する（サンプルPDFに近い形式で）
+  // 複数日程の点呼記録を1枚にまとめたPDFレポートを生成する
   Future<File> generateCombinedRollCallReport(Map<DateTime, List<RollCallRecord>> groupedRecords, {String? title}) async {
-    // 日本語フォントを読み込む
-    final font = await _loadFont();
-    
-    // PDF文書を作成
-    final pdf = pw.Document(
-      theme: pw.ThemeData.withFont(
-        base: font,
-        bold: font,
-      ),
-    );
-    
-    // フォーマッタを準備
-    final dateFormatter = DateFormat('yyyy-MM-dd');
-    final shortDateFormatter = DateFormat('MM/dd');
-    final dayFormatter = DateFormat('yyyy年MM月dd日(E)', 'ja_JP');
-    final timeFormatter = DateFormat('HH:mm');
-    
-    // 日付を古い順に並べる
-    final sortedDates = groupedRecords.keys.toList()
-      ..sort((a, b) => a.compareTo(b));
-
-    // レポートのタイトル
-    final reportTitle = title ?? '点呼シート';
-    final reportPeriod = sortedDates.isNotEmpty 
-        ? '${dateFormatter.format(sortedDates.first)} 〜 ${dateFormatter.format(sortedDates.last)}'
-        : '';
-
-    // ヘッダー情報
-    final headerText = 'アルコール検知器を携行した者（点呼執行者、運転者）';
-
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        build: (pw.Context context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              // タイトル
-              pw.Center(
-                child: pw.Text(
-                  reportTitle, 
-                  style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)
-                ),
-              ),
-              
-              pw.SizedBox(height: 10),
-              
-              // 期間情報
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text(
-                    '期間: $reportPeriod',
-                    style: pw.TextStyle(fontSize: 12),
-                  ),
-                  pw.Text(
-                    '作成日: ${dateFormatter.format(DateTime.now())}',
-                    style: const pw.TextStyle(fontSize: 10),
-                  ),
-                ],
-              ),
-              
-              pw.SizedBox(height: 5),
-              
-              // ヘッダー情報
-              pw.Container(
-                width: double.infinity,
-                padding: const pw.EdgeInsets.all(5),
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(),
-                ),
-                child: pw.Text(
-                  headerText,
-                  style: pw.TextStyle(fontSize: 10),
-                ),
-              ),
-              
-              pw.SizedBox(height: 15),
-              
-              // 点呼記録テーブル
-              pw.Table(
-                border: pw.TableBorder.all(),
-                columnWidths: {
-                  0: const pw.FlexColumnWidth(1.5), // 日付
-                  1: const pw.FlexColumnWidth(1.0), // 点呼種類
-                  2: const pw.FlexColumnWidth(1.0), // 時刻
-                  3: const pw.FlexColumnWidth(1.5), // 点呼執行者
-                  4: const pw.FlexColumnWidth(1.0), // 点呼方法
-                  5: const pw.FlexColumnWidth(1.0), // アルコール検査
-                  6: const pw.FlexColumnWidth(1.0), // 酒気帯び
-                  7: const pw.FlexColumnWidth(1.0), // 検出値
-                  8: const pw.FlexColumnWidth(2.0), // 備考
-                },
-                children: [
-                  // ヘッダー行
-                  pw.TableRow(
-                    decoration: const pw.BoxDecoration(
-                      color: PdfColors.grey200,
-                    ),
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(3),
-                        child: pw.Text('日付', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(3),
-                        child: pw.Text('点呼種類', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(3),
-                        child: pw.Text('時刻', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(3),
-                        child: pw.Text('点呼執行者', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(3),
-                        child: pw.Text('点呼方法', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(3),
-                        child: pw.Text('アルコール\n検査', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(3),
-                        child: pw.Text('酒気帯び', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(3),
-                        child: pw.Text('検出値', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(3),
-                        child: pw.Text('備考', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-                      ),
-                    ],
-                  ),
-                  
-                  // 各日付・各記録のデータ行
-                  ...sortedDates.expand((date) {
-                    final recordsForDate = groupedRecords[date]!;
-                    // 時間でソート
-                    recordsForDate.sort((a, b) => a.datetime.compareTo(b.datetime));
-                    
-                    return recordsForDate.map((record) {
-                      final methodText = record.method == 'その他' && record.otherMethodDetail != null
-                        ? '${record.method}\n(${record.otherMethodDetail})'
-                        : record.method;
-                        
-                      return pw.TableRow(
-                        children: [
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(3),
-                            child: pw.Text(shortDateFormatter.format(date), style: const pw.TextStyle(fontSize: 9)),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(3),
-                            child: pw.Text(record.type == 'start' ? '始業点呼' : '終業点呼', style: const pw.TextStyle(fontSize: 9)),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(3),
-                            child: pw.Text(timeFormatter.format(record.datetime), style: const pw.TextStyle(fontSize: 9)),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(3),
-                            child: pw.Text(record.inspectorName, style: const pw.TextStyle(fontSize: 9)),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(3),
-                            child: pw.Text(methodText, style: const pw.TextStyle(fontSize: 9)),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(3),
-                            child: pw.Text(record.isAlcoholTestUsed ? '実施' : '未実施', style: const pw.TextStyle(fontSize: 9)),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(3),
-                            child: pw.Text(record.hasDrunkAlcohol ? '有' : '無', style: const pw.TextStyle(fontSize: 9)),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(3),
-                            child: pw.Text(record.alcoholValue != null ? '${record.alcoholValue!.toStringAsFixed(2)} mg/L' : '-', style: const pw.TextStyle(fontSize: 9)),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(3),
-                            child: pw.Text(record.remarks ?? '', style: const pw.TextStyle(fontSize: 9)),
-                          ),
-                        ],
-                      );
-                    });
-                  }),
-                ],
-              ),
-            ],
-          );
-        },
-      ),
-    );
-
-    try {
-      // 保存先ディレクトリを取得
-      final directory = await _getOutputDirectory();
-      print('PDFの保存先ディレクトリ: ${directory.path}');
-      
-      // 日付文字列の生成（ハイフン区切り）
-      final startDate = sortedDates.isNotEmpty ? dateFormatter.format(sortedDates.first) : '';
-      final endDate = sortedDates.isNotEmpty ? dateFormatter.format(sortedDates.last) : '';
-      
-      final fileName = sortedDates.length > 1 
-          ? 'roll_call_sheet_${startDate}_to_$endDate.pdf' 
-          : 'roll_call_sheet_$startDate.pdf';
-      
-      final filePath = path.join(directory.path, fileName);
-      final file = File(filePath);
-      
-      // PDFファイルを保存
-      final pdfBytes = await pdf.save();
-      await file.writeAsBytes(pdfBytes);
-      
-      print('点呼シートが保存されました: ${file.path}');
-      return file;
-    } catch (e) {
-      print('PDFファイル生成エラー: $e');
-      throw Exception('PDFファイルの生成中にエラーが発生しました: $e');
+    if (groupedRecords.isEmpty) {
+      throw Exception('点呼記録がありません');
     }
+
+    // 最初の日付の記録を使用する（単一日付でない場合は最も古い日付）
+    final sortedDates = groupedRecords.keys.toList()..sort();
+    final firstDate = sortedDates.first;
+    final allRecords = groupedRecords.values.expand((records) => records).toList();
+    
+    // 既存の単一日付レポート生成メソッドを使用
+    return generateRollCallReport(allRecords, firstDate);
   }
-} 
+
+  // 訪問記録のフィルタヘルパーメソッド
+  Map<DateTime, List<VisitRecord>> _filterVisitRecordsByPeriod(
+    Map<DateTime, List<VisitRecord>> allRecords,
+    DateTime startDate,
+    DateTime endDate,
+  ) {
+    final start = DateTime(startDate.year, startDate.month, startDate.day);
+    final end = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+    
+    final filtered = <DateTime, List<VisitRecord>>{};
+    
+    allRecords.forEach((date, records) {
+      if (date.isAfter(start.subtract(const Duration(days: 1))) &&
+          date.isBefore(end.add(const Duration(days: 1)))) {
+        filtered[date] = records;
+      }
+    });
+    
+    return filtered;
+  }
+
+  Map<DateTime, List<VisitRecord>> _filterVisitRecordsByMonth(
+    Map<DateTime, List<VisitRecord>> allRecords,
+    DateTime month,
+  ) {
+    final filtered = <DateTime, List<VisitRecord>>{};
+    
+    allRecords.forEach((date, records) {
+      if (date.year == month.year && date.month == month.month) {
+        filtered[date] = records;
+      }
+    });
+    
+    return filtered;
+  }
+
+  // 点呼記録のフィルタヘルパーメソッド
+  Map<DateTime, List<RollCallRecord>> _filterRollCallRecordsByPeriod(
+    Map<DateTime, List<RollCallRecord>> allRecords,
+    DateTime startDate,
+    DateTime endDate,
+  ) {
+    final start = DateTime(startDate.year, startDate.month, startDate.day);
+    final end = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+    
+    final filtered = <DateTime, List<RollCallRecord>>{};
+    
+    allRecords.forEach((date, records) {
+      if (date.isAfter(start.subtract(const Duration(days: 1))) &&
+          date.isBefore(end.add(const Duration(days: 1)))) {
+        filtered[date] = records;
+      }
+    });
+    
+    return filtered;
+  }
+
+  Map<DateTime, List<RollCallRecord>> _filterRollCallRecordsByMonth(
+    Map<DateTime, List<RollCallRecord>> allRecords,
+    DateTime month,
+  ) {
+    final filtered = <DateTime, List<RollCallRecord>>{};
+    
+    allRecords.forEach((date, records) {
+      if (date.year == month.year && date.month == month.month) {
+        filtered[date] = records;
+      }
+    });
+    
+    return filtered;
+  }
+
+  // 期間指定対応のPDF生成メソッド
+  Future<File> generatePeriodVisitReport(
+    Map<DateTime, List<VisitRecord>> allRecords,
+    DateTime startDate,
+    DateTime endDate, {
+    String? title,
+  }) async {
+    final filteredRecords = _filterVisitRecordsByPeriod(allRecords, startDate, endDate);
+    return generateMultiDayReport(filteredRecords, title: title ?? '訪問記録 ${DateFormat('yyyy/MM/dd').format(startDate)} - ${DateFormat('yyyy/MM/dd').format(endDate)}');
+  }
+
+  Future<File> generateDailyVisitReport(
+    Map<DateTime, List<VisitRecord>> allRecords,
+    DateTime date, {
+    String? title,
+  }) async {
+    final targetDate = DateTime(date.year, date.month, date.day);
+    final records = allRecords[targetDate] ?? [];
+    return generateDailyReport(records, date);
+  }
+
+  Future<File> generateMonthlyVisitReport(
+    Map<DateTime, List<VisitRecord>> allRecords,
+    DateTime month, {
+    String? title,
+  }) async {
+    final filteredRecords = _filterVisitRecordsByMonth(allRecords, month);
+    return generateMultiDayReport(filteredRecords, title: title);
+  }
+
+  Future<File> generatePeriodRollCallReport(
+    Map<DateTime, List<RollCallRecord>> allRecords,
+    DateTime startDate,
+    DateTime endDate, {
+    String? title,
+  }) async {
+    final filteredRecords = _filterRollCallRecordsByPeriod(allRecords, startDate, endDate);
+    return generateCombinedRollCallReport(filteredRecords, title: title);
+  }
+
+  Future<File> generateDailyRollCallReport(
+    Map<DateTime, List<RollCallRecord>> allRecords,
+    DateTime date, {
+    String? title,
+  }) async {
+    final targetDate = DateTime(date.year, date.month, date.day);
+    final records = allRecords[targetDate] ?? [];
+    
+    final filteredRecords = <DateTime, List<RollCallRecord>>{targetDate: records};
+    return generateCombinedRollCallReport(filteredRecords, title: title);
+  }
+
+  Future<File> generateMonthlyRollCallReport(
+    Map<DateTime, List<RollCallRecord>> allRecords,
+    DateTime month, {
+    String? title,
+  }) async {
+    final filteredRecords = _filterRollCallRecordsByMonth(allRecords, month);
+    return generateCombinedRollCallReport(filteredRecords, title: title);
+  }
+}
+
