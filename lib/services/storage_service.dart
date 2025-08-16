@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'dart:async'; // Completerのためのimport
+import '../utils/logger.dart';
 
 // Webプラットフォーム対応
 import 'dart:io';
@@ -42,7 +43,7 @@ class StorageService {
 
   // 訪問記録の保存
   Future<void> saveVisitRecords(List<VisitRecord> records) async {
-    print('訪問記録の保存を開始: ${records.length}件');
+    AppLogger.info('訪問記録の保存を開始: ${records.length}件', 'StorageService');
     
     try {
       final jsonData = records.map((record) => record.toJson()).toList();
@@ -52,30 +53,30 @@ class StorageService {
         // Web用の実装 - SharedPreferencesを使用
         final prefs = await getPrefs();
         await prefs.setString(_visitRecordsStorageKey, jsonString);
-        print('Web: SharedPreferencesに訪問記録を保存しました');
+        AppLogger.info('Web: SharedPreferencesに訪問記録を保存しました', 'StorageService');
       } else {
         // ネイティブ用の実装
         final directory = await getApplicationDocumentsDirectory();
         final file = File('${directory.path}/$_visitRecordsFileName');
         await file.writeAsString(jsonString, flush: true);
-        print('ネイティブ: ファイルに訪問記録を保存しました: ${file.path}');
+        AppLogger.info('ネイティブ: ファイルに訪問記録を保存しました: ${file.path}', 'StorageService');
         
         // 書き込みが完了したことを確認
         if (await file.exists()) {
           final fileContents = await file.readAsString();
           final savedRecords = jsonDecode(fileContents) as List;
-          print('保存されたデータを確認: ${savedRecords.length}件のレコードが保存されています');
+          AppLogger.info('保存されたデータを確認: ${savedRecords.length}件のレコードが保存されています', 'StorageService');
         }
       }
     } catch (e) {
-      print('訪問記録の保存中にエラーが発生しました: $e');
+      AppLogger.error('訪問記録の保存中にエラーが発生しました', 'StorageService', e);
       rethrow;
     }
   }
 
   // 訪問記録の読み込み
   Future<List<VisitRecord>> loadVisitRecords() async {
-    print('訪問記録の読み込みを開始');
+    AppLogger.info('訪問記録の読み込みを開始', 'StorageService');
     try {
       String? jsonString;
       
@@ -84,36 +85,36 @@ class StorageService {
         final prefs = await getPrefs();
         jsonString = prefs.getString(_visitRecordsStorageKey);
         if (jsonString == null) {
-          print('Web: 保存された訪問記録がありません');
+          AppLogger.info('Web: 保存された訪問記録がありません', 'StorageService');
           return [];
         }
-        print('Web: SharedPreferencesから訪問記録を読み込みました');
+        AppLogger.info('Web: SharedPreferencesから訪問記録を読み込みました', 'StorageService');
       } else {
         // ネイティブ用の実装
         final directory = await getApplicationDocumentsDirectory();
         final file = File('${directory.path}/$_visitRecordsFileName');
         
         if (!await file.exists()) {
-          print('ネイティブ: 訪問記録ファイルが存在しません: ${file.path}');
+          AppLogger.info('ネイティブ: 訪問記録ファイルが存在しません: ${file.path}', 'StorageService');
           return [];
         }
         
         jsonString = await file.readAsString();
-        print('ネイティブ: ファイルから訪問記録を読み込みました: ${file.path}');
+        AppLogger.info('ネイティブ: ファイルから訪問記録を読み込みました: ${file.path}', 'StorageService');
       }
       
       // 空文字列やnullの場合は空のリストを返す
       if (jsonString.isEmpty) {
-        print('訪問記録のJSONデータが空です');
+        AppLogger.warning('訪問記録のJSONデータが空です', 'StorageService');
         return [];
       }
       
       final List<dynamic> jsonData = jsonDecode(jsonString);
       final records = jsonData.map((data) => VisitRecord.fromJson(data)).toList();
-      print('訪問記録の読み込みが完了しました: ${records.length}件');
+      AppLogger.info('訪問記録の読み込みが完了しました: ${records.length}件', 'StorageService');
       return records;
     } catch (e) {
-      print('訪問記録の読み込み中にエラーが発生しました: $e');
+      AppLogger.error('訪問記録の読み込み中にエラーが発生しました', 'StorageService', e);
       return [];
     }
   }
@@ -160,14 +161,14 @@ class StorageService {
       final List<dynamic> jsonData = jsonDecode(jsonString);
       return jsonData.map((data) => Client.fromJson(data)).toList();
     } catch (e) {
-      print('Error loading clients: $e');
+      AppLogger.error('顧客情報の読み込み中にエラーが発生しました', 'StorageService', e);
       return [];
     }
   }
 
   // 単一の訪問記録の追加
   Future<void> addVisitRecord(VisitRecord record) async {
-    print('訪問記録の追加を開始: ${record.clientName} (${DateFormat('yyyy/MM/dd HH:mm').format(record.arrivalTime)})');
+    AppLogger.info('訪問記録の追加を開始: ${record.clientName} (${DateFormat('yyyy/MM/dd HH:mm').format(record.arrivalTime)})', 'StorageService');
     
     // 同期ロックのためのCompleter (完了を保証するため)
     final completer = Completer<void>();
@@ -175,22 +176,22 @@ class StorageService {
     try {
       // 現在のレコードを取得
       final records = await loadVisitRecords();
-      print('現在の訪問記録数: ${records.length}件');
+      AppLogger.info('現在の訪問記録数: ${records.length}件', 'StorageService');
       
       // 新しいレコードを追加
       records.add(record);
-      print('新しい訪問記録を追加しました (ID: ${record.id})');
+      AppLogger.info('新しい訪問記録を追加しました (ID: ${record.id})', 'StorageService');
       
       // ファイルに保存 - 直接awaitせず、completerを使用
       saveVisitRecords(records).then((_) {
-        print('訪問記録ファイルへの保存が完了しました');
+        AppLogger.info('訪問記録ファイルへの保存が完了しました', 'StorageService');
         
         // 日付別のグループキャッシュを更新
-        final recordDate = DateTime(
-          record.arrivalTime.year,
-          record.arrivalTime.month,
-          record.arrivalTime.day,
-        );
+        // final recordDate = DateTime(
+        //   record.arrivalTime.year,
+        //   record.arrivalTime.month,
+        //   record.arrivalTime.day,
+        // );
         
         // 最新の日付ごとのデータを取得して更新を確認
         return getVisitRecordsGroupedByDate();
@@ -201,28 +202,28 @@ class StorageService {
           record.arrivalTime.day,
         );
         final updatedDateRecords = updatedGroups[recordDate] ?? [];
-        print('この日付の訪問記録数: ${updatedDateRecords.length}件');
+        AppLogger.info('この日付の訪問記録数: ${updatedDateRecords.length}件', 'StorageService');
         
         // 再度読み込みを試してみる (完全に非同期)
         return loadVisitRecords();
       }).then((allRecordsAfterSave) {
-        print('保存後の総訪問記録数: ${allRecordsAfterSave.length}件');
+        AppLogger.info('保存後の総訪問記録数: ${allRecordsAfterSave.length}件', 'StorageService');
         
         // バグデバッグ用: 追加したレコードが正しく保存されたか確認
         final foundAfterSave = allRecordsAfterSave.any((r) => r.id == record.id);
-        print('保存後の記録に新しいIDが見つかりました: $foundAfterSave');
+        AppLogger.debug('保存後の記録に新しいIDが見つかりました: $foundAfterSave', 'StorageService');
         
         // すべての処理が完了
         completer.complete();
       }).catchError((e) {
-        print('訪問記録の処理中にエラーが発生しました: $e');
+        AppLogger.error('訪問記録の処理中にエラーが発生しました', 'StorageService', e);
         completer.completeError(e);
       });
       
       // このメソッドを呼び出す側はこのcompleterが完了するまで待つ
       return completer.future;
     } catch (e) {
-      print('訪問記録の追加に失敗しました: $e');
+      AppLogger.error('訪問記録の追加に失敗しました', 'StorageService', e);
       completer.completeError(Exception('訪問記録の追加に失敗しました: $e'));
       return completer.future;
     }
@@ -460,7 +461,7 @@ class StorageService {
         await file.writeAsString(jsonString);
       }
     } catch (e) {
-      print('Error saving daily records: $e');
+      AppLogger.error('日次記録の保存中にエラーが発生しました', 'StorageService', e);
       rethrow;
     }
   }
@@ -490,7 +491,7 @@ class StorageService {
       final List<dynamic> jsonData = jsonDecode(jsonString);
       return jsonData.map((data) => DailyRecord.fromJson(data)).toList();
     } catch (e) {
-      print('Error loading daily records: $e');
+      AppLogger.error('日次記録の読み込み中にエラーが発生しました', 'StorageService', e);
       return [];
     }
   }
@@ -560,7 +561,7 @@ class StorageService {
       final List<dynamic> jsonData = jsonDecode(jsonString);
       return jsonData.map((data) => RollCallRecord.fromJson(data)).toList();
     } catch (e) {
-      print('Error loading roll call records: $e');
+      AppLogger.error('点呼記録の読み込み中にエラーが発生しました', 'StorageService', e);
       return [];
     }
   }
@@ -595,6 +596,17 @@ class StorageService {
     }
   }
   
+  // DailyRecordオブジェクトを直接保存（BackupService用）
+  Future<void> saveDailyRecordObject(DailyRecord record) async {
+    await saveDailyRecord(
+      record.date,
+      startMileage: record.startMileage,
+      endMileage: record.endMileage,
+      morningAlcoholValue: record.morningAlcoholValue,
+      eveningAlcoholValue: record.eveningAlcoholValue,
+    );
+  }
+
   // 今日の始業点呼記録を取得
   Future<RollCallRecord?> getTodayStartRollCall() async {
     final now = DateTime.now();

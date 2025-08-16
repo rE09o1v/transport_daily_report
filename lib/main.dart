@@ -1,8 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:transport_daily_report/screens/home_screen.dart';
+import 'package:transport_daily_report/config/app_config.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // .envファイルを読み込み
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    // .envファイルが見つからない場合は無視（dart-defineを使用する場合）
+    print('dotenv読み込みエラー（無視されます）: $e');
+  }
+  
+  // Firebase初期化
+  await Firebase.initializeApp();
+  
+  // 設定状況を出力（デバッグモード時のみ）
+  if (AppConfig.isDebugMode) {
+    ConfigValidator.printConfigStatus();
+  }
+  
   runApp(const MyApp());
 }
 
@@ -95,7 +116,7 @@ class MyApp extends StatelessWidget {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colorScheme.outline.withOpacity(0.5)),
+          borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.5)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -200,7 +221,7 @@ class MyApp extends StatelessWidget {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colorScheme.outline.withOpacity(0.5)),
+          borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.5)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

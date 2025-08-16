@@ -8,6 +8,7 @@ import 'package:transport_daily_report/utils/ui_components.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../utils/period_selector_dialog.dart';
+import '../utils/logger.dart';
 
 class RollCallListScreen extends StatefulWidget {
   const RollCallListScreen({super.key});
@@ -75,7 +76,7 @@ class _RollCallListScreenState extends State<RollCallListScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading roll call records: $e');
+      AppLogger.error('点呼記録の読み込み中にエラーが発生しました', 'RollCallListScreen', e);
       if (!mounted) return;
       setState(() {
         _isLoading = false;

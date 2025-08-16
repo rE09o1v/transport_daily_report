@@ -3,6 +3,7 @@ import 'package:transport_daily_report/screens/visit_list_screen.dart';
 import 'package:transport_daily_report/screens/visit_entry_screen.dart';
 import 'package:transport_daily_report/screens/client_list_screen.dart';
 import 'package:transport_daily_report/screens/roll_call_list_screen.dart';
+import 'package:transport_daily_report/screens/backup_settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,12 +15,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   
-  // 各画面のホームボタンを表示/非表示にするためのフラグ
-  final List<bool> _showFloatingActionButton = [false, false, false];
   
   // 各画面の参照を保持
   final List<GlobalKey<State>> _screenKeys = [
     GlobalKey<VisitListScreenState>(),
+    GlobalKey<State>(),
     GlobalKey<State>(),
     GlobalKey<State>(),
   ];
@@ -31,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
       VisitListScreen(key: _screenKeys[0]),
       ClientListScreen(key: _screenKeys[1]),
       RollCallListScreen(key: _screenKeys[2]),
+      BackupSettingsScreen(key: _screenKeys[3]),
     ];
     
     void onItemTapped(int index) {
@@ -63,6 +64,11 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icon(Icons.assignment_outlined),
             selectedIcon: Icon(Icons.assignment),
             label: '点呼',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.backup_outlined),
+            selectedIcon: Icon(Icons.backup),
+            label: 'バックアップ',
           ),
         ],
       ),

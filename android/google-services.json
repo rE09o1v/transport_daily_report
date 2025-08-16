@@ -1,0 +1,38 @@
+{
+  "project_info": {
+    "project_number": "285382223354",
+    "project_id": "transport-daily-report",
+    "storage_bucket": "transport-daily-report.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:285382223354:android:3a7a3cda5017875a1e7043",
+        "android_client_info": {
+          "package_name": "com.example.transport_daily_report"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "285382223354-1pvdnjslbmiq065k42if538t3fg41auv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.transport_daily_report",
+            "certificate_hash": "4a6d9f07db9aab69a1f1593696b37a4a01ede2c0"
+          }
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCW4YUh2GSKDYQd_YQwoqt0gqYiENi9iQs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

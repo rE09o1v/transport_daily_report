@@ -443,7 +443,7 @@ class _ClientListScreenState extends State<ClientListScreen> {
       decoration: BoxDecoration(
         color: hasLocation 
             ? Theme.of(context).colorScheme.primaryContainer
-            : Theme.of(context).colorScheme.surfaceVariant,
+            : Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Icon(

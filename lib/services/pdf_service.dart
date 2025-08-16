@@ -9,6 +9,7 @@ import 'package:path/path.dart' as path;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/logger.dart';
 
 class PdfService {
   // フォントデータを読み込む
@@ -18,7 +19,7 @@ class PdfService {
       final fontData = await rootBundle.load('assets/fonts/ipaexg.ttf');
       return pw.Font.ttf(fontData);
     } catch (e) {
-      print('フォント読み込みエラー: $e');
+      AppLogger.error('フォント読み込みエラー', 'PdfService', e);
       // 代替としてデフォルトフォントを使用
       return pw.Font.helvetica();
     }
@@ -39,7 +40,7 @@ class PdfService {
         'lastUpdateDate': lastUpdateDate,
       };
     } catch (e) {
-      print('走行距離データの取得エラー: $e');
+      AppLogger.error('走行距離データの取得エラー', 'PdfService', e);
       return {
         'startMileage': null,
         'endMileage': null,
@@ -191,7 +192,7 @@ class PdfService {
             return directory;
           }
         } catch (e) {
-          print('外部ストレージへのアクセスエラー: $e');
+          AppLogger.error('外部ストレージへのアクセスエラー', 'PdfService', e);
         }
         
         // ダウンロードディレクトリを使用 (古いAndroid向け)
@@ -202,7 +203,7 @@ class PdfService {
           }
           return downloadDir;
         } catch (e) {
-          print('ダウンロードディレクトリへのアクセスエラー: $e');
+          AppLogger.error('ダウンロードディレクトリへのアクセスエラー', 'PdfService', e);
         }
       }
       
@@ -405,7 +406,7 @@ class PdfService {
     try {
       // 保存先ディレクトリを取得
       final directory = await _getOutputDirectory();
-      print('PDFの保存先ディレクトリ: ${directory.path}');
+      AppLogger.info('PDFの保存先ディレクトリ: ${directory.path}', 'PdfService');
       
       // ファイル名にはハイフンを使用
       final fileName = 'daily_report_$formattedDate.pdf';
@@ -416,10 +417,10 @@ class PdfService {
       final pdfBytes = await pdf.save();
       await file.writeAsBytes(pdfBytes);
       
-      print('PDFファイルが保存されました: ${file.path}');
+      AppLogger.info('PDFファイルが保存されました: ${file.path}', 'PdfService');
       return file;
     } catch (e) {
-      print('PDFファイル生成エラー: $e');
+      AppLogger.error('PDFファイル生成エラー', 'PdfService', e);
       throw Exception('PDFファイルの生成中にエラーが発生しました: $e');
     }
   }
@@ -458,10 +459,11 @@ class PdfService {
       ..sort((a, b) => b.compareTo(a));
 
     // レポートタイトル
-    final reportTitle = title ?? '訪問記録レポート';
-    final reportPeriod = sortedDates.isNotEmpty 
-        ? '${dateFormatter.format(sortedDates.last)} 〜 ${dateFormatter.format(sortedDates.first)}'
-        : '';
+    // 未使用変数のためコメントアウト
+    // final reportTitle = title ?? '訪問記録レポート';
+    // final reportPeriod = sortedDates.isNotEmpty 
+    //     ? '${dateFormatter.format(sortedDates.last)} 〜 ${dateFormatter.format(sortedDates.first)}'
+    //     : '';
 
     // 各日付ごとのページ
     for (final date in sortedDates) {
@@ -608,7 +610,7 @@ class PdfService {
     try {
       // 保存先ディレクトリを取得
       final directory = await _getOutputDirectory();
-      print('PDFの保存先ディレクトリ: ${directory.path}');
+      AppLogger.info('PDFの保存先ディレクトリ: ${directory.path}', 'PdfService');
       
       // 日付文字列の生成（ハイフン区切り）
       final startDate = sortedDates.isNotEmpty ? dateFormatter.format(sortedDates.last) : '';
@@ -624,22 +626,14 @@ class PdfService {
       final pdfBytes = await pdf.save();
       await file.writeAsBytes(pdfBytes);
       
-      print('PDFファイルが保存されました: ${file.path}');
+      AppLogger.info('PDFファイルが保存されました: ${file.path}', 'PdfService');
       return file;
     } catch (e) {
-      print('PDFファイル生成エラー: $e');
+      AppLogger.error('PDFファイル生成エラー', 'PdfService', e);
       throw Exception('PDFファイルの生成中にエラーが発生しました: $e');
     }
   }
   
-  // 総訪問件数をカウント
-  int _countTotalVisits(Map<DateTime, List<VisitRecord>> groupedRecords) {
-    int totalCount = 0;
-    for (final records in groupedRecords.values) {
-      totalCount += records.length;
-    }
-    return totalCount;
-  }
 
   // 単一日付の点呼記録からPDFレポートを生成する
   Future<File> generateRollCallReport(List<RollCallRecord> records, DateTime date) async {
@@ -844,7 +838,7 @@ class PdfService {
     try {
       // 保存先ディレクトリを取得
       final directory = await _getOutputDirectory();
-      print('PDFの保存先ディレクトリ: ${directory.path}');
+      AppLogger.info('PDFの保存先ディレクトリ: ${directory.path}', 'PdfService');
       
       // ファイル名にはハイフンを使用
       final fileName = 'roll_call_report_$formattedDate.pdf';
@@ -855,10 +849,10 @@ class PdfService {
       final pdfBytes = await pdf.save();
       await file.writeAsBytes(pdfBytes);
       
-      print('点呼記録PDFファイルが保存されました: ${file.path}');
+      AppLogger.info('点呼記録PDFファイルが保存されました: ${file.path}', 'PdfService');
       return file;
     } catch (e) {
-      print('PDFファイル生成エラー: $e');
+      AppLogger.error('PDFファイル生成エラー', 'PdfService', e);
       throw Exception('PDFファイルの生成中にエラーが発生しました: $e');
     }
   }
@@ -886,10 +880,11 @@ class PdfService {
       ..sort((a, b) => b.compareTo(a));
 
     // レポートタイトル
-    final reportTitle = title ?? '点呼記録レポート';
-    final reportPeriod = sortedDates.isNotEmpty 
-        ? '${dateFormatter.format(sortedDates.last)} 〜 ${dateFormatter.format(sortedDates.first)}'
-        : '';
+    // 未使用変数のためコメントアウト
+    // final reportTitle = title ?? '点呼記録レポート';
+    // final reportPeriod = sortedDates.isNotEmpty 
+    //     ? '${dateFormatter.format(sortedDates.last)} 〜 ${dateFormatter.format(sortedDates.first)}'
+    //     : '';
 
     // 各日付ごとのページ
     for (final date in sortedDates) {
@@ -1064,7 +1059,7 @@ class PdfService {
     try {
       // 保存先ディレクトリを取得
       final directory = await _getOutputDirectory();
-      print('PDFの保存先ディレクトリ: ${directory.path}');
+      AppLogger.info('PDFの保存先ディレクトリ: ${directory.path}', 'PdfService');
       
       // 日付文字列の生成（ハイフン区切り）
       final startDate = sortedDates.isNotEmpty ? dateFormatter.format(sortedDates.last) : '';
@@ -1080,10 +1075,10 @@ class PdfService {
       final pdfBytes = await pdf.save();
       await file.writeAsBytes(pdfBytes);
       
-      print('点呼記録PDFファイルが保存されました: ${file.path}');
+      AppLogger.info('点呼記録PDFファイルが保存されました: ${file.path}', 'PdfService');
       return file;
     } catch (e) {
-      print('PDFファイル生成エラー: $e');
+      AppLogger.error('PDFファイル生成エラー', 'PdfService', e);
       throw Exception('PDFファイルの生成中にエラーが発生しました: $e');
     }
   }

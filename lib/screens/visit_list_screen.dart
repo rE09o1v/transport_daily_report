@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
+import 'dart:async';
 import 'package:transport_daily_report/models/visit_record.dart';
 import 'package:transport_daily_report/screens/visit_detail_screen.dart';
 import 'package:transport_daily_report/services/storage_service.dart';
 import 'package:transport_daily_report/services/pdf_service.dart';
+import 'package:transport_daily_report/services/app_state_service.dart';
 import 'package:transport_daily_report/utils/ui_components.dart';
 import 'package:share_plus/share_plus.dart';
 import '../utils/period_selector_dialog.dart';
@@ -38,6 +40,9 @@ class VisitListScreenState extends State<VisitListScreen> {
   
   // 折りたたみ状態
   bool _mileagePanelExpanded = false;
+  
+  // データ更新通知の購読
+  late StreamSubscription<DataUpdateEvent> _dataUpdateSubscription;
 
   @override
   void initState() {
@@ -49,6 +54,14 @@ class VisitListScreenState extends State<VisitListScreen> {
     // 走行距離の変更を監視するリスナーを追加
     _startMileageController.addListener(_updateDistanceDifference);
     _endMileageController.addListener(_updateDistanceDifference);
+    
+    // データ更新通知を購読
+    _dataUpdateSubscription = AppStateService().dataUpdateStream.listen((event) {
+      if (event.type == DataUpdateType.visitRecords || event.type == DataUpdateType.allData) {
+        // 訪問記録が更新された場合、データを再読み込み
+        _loadVisitRecords();
+      }
+    });
   }
   
   @override
@@ -57,6 +70,7 @@ class VisitListScreenState extends State<VisitListScreen> {
     _endMileageController.removeListener(_updateDistanceDifference);
     _startMileageController.dispose();
     _endMileageController.dispose();
+    _dataUpdateSubscription.cancel(); // データ更新通知の購読解除
     super.dispose();
   }
   

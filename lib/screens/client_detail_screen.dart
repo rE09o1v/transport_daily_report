@@ -126,9 +126,11 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
             onPressed: () async {
               final name = nameController.text.trim();
               if (name.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('得意先名は必須です')),
-                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('得意先名は必須です')),
+                  );
+                }
                 return;
               }
 
@@ -142,7 +144,9 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
               );
 
               await _updateClient(updatedClient);
-              Navigator.pop(context);
+              if (mounted) {
+                Navigator.pop(context);
+              }
             },
             child: const Text('保存'),
           ),
@@ -268,14 +272,18 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
           _client = updatedClient;
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('得意先情報を更新しました')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('得意先情報を更新しました')),
+          );
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('得意先情報の更新に失敗しました: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('得意先情報の更新に失敗しました: $e')),
+        );
+      }
     }
   }
 
