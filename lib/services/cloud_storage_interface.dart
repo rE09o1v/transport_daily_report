@@ -45,6 +45,12 @@ abstract class CloudStorageInterface {
   
   /// エラー状態を確認
   String? get lastError;
+  
+  /// 認証をリフレッシュ（オプション：実装サービスでサポートされる場合）
+  Future<bool> refreshAuthentication() async {
+    // デフォルト実装：通常の接続を再試行
+    return await connect();
+  }
 }
 
 /// クラウドストレージサービスの種類

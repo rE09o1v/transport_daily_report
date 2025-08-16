@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:transport_daily_report/screens/home_screen.dart';
+import 'package:transport_daily_report/screens/pre_authenticated_home_screen.dart';
 import 'package:transport_daily_report/config/app_config.dart';
+import 'package:transport_daily_report/services/app_services.dart';
+import 'package:transport_daily_report/services/storage_service.dart';
+import 'package:transport_daily_report/services/backup_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,11 +27,72 @@ void main() async {
     ConfigValidator.printConfigStatus();
   }
   
-  runApp(const MyApp());
+  // 事前認証復元を実行
+  final initialAuthState = await _performPreAuthentication();
+  
+  runApp(MyApp(initialAuthState: initialAuthState));
 }
 
+/// 事前認証復元を実行
+Future<InitialAuthState> _performPreAuthentication() async {
+  try {
+    print('[STARTUP] 事前認証復元を開始');
+    
+    final storageService = StorageService();
+    final backupService = BackupService(storageService);
+    
+    // AppServicesにBackupServiceを登録
+    AppServices.instance.setBackupService(backupService);
+    
+    // タイムアウト付きでBackupService初期化
+    await backupService.initialize().timeout(
+      const Duration(seconds: 5),
+      onTimeout: () {
+        print('[STARTUP] 認証復元がタイムアウト - 未認証状態で開始');
+        return;
+      },
+    );
+    
+    // 認証状態をチェック
+    print('[STARTUP] 認証状態チェック中...');
+    print('[STARTUP] isCloudConnected: ${backupService.isCloudConnected}');
+    print('[STARTUP] currentUser: ${backupService.currentUser}');
+    
+    if (backupService.isCloudConnected) {
+      final userName = backupService.currentUser;
+      print('[STARTUP] ✅ Google Drive自動接続成功: $userName');
+      return InitialAuthState(
+        isAuthenticated: true,
+        userName: userName,
+        backupService: backupService,
+      );
+    } else {
+      print('[STARTUP] ❌ Google Drive自動接続失敗 - 手動接続が必要');
+      return InitialAuthState(
+        isAuthenticated: false,
+        userName: null,
+        backupService: backupService,
+      );
+    }
+  } catch (e) {
+    print('[STARTUP] 事前認証エラー: $e - 通常起動');
+    final storageService = StorageService();
+    final backupService = BackupService(storageService);
+    AppServices.instance.setBackupService(backupService);
+    return InitialAuthState(
+      isAuthenticated: false,
+      userName: null,
+      backupService: backupService,
+    );
+  }
+}
+
+
+
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final InitialAuthState initialAuthState;
+  
+  const MyApp({super.key, required this.initialAuthState});
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +101,7 @@ class MyApp extends StatelessWidget {
       theme: _buildLightTheme(),
       darkTheme: _buildDarkTheme(),
       themeMode: ThemeMode.system, // システムテーマに従う
-      home: const HomeScreen(),
+      home: PreAuthenticatedHomeScreen(initialAuthState: initialAuthState),
       // 日本語のロケールを設定
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,

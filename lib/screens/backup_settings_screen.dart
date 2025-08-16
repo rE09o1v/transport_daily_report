@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../services/app_services.dart';
 import '../services/backup_service.dart';
 import '../services/data_export_service.dart';
 import '../services/storage_service.dart';
@@ -32,11 +33,22 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> with Ticker
   
   Future<void> _initializeServices() async {
     try {
+      // AppServicesから既に初期化済みのBackupServiceを取得
+      if (AppServices.instance.isBackupServiceInitialized) {
+        _backupService = AppServices.instance.backupService!;
+        AppLogger.info('既存のBackupServiceを使用', 'BackupSettingsScreen');
+      } else {
+        // フォールバック：新しくBackupServiceを作成
+        final storageService = StorageService();
+        _backupService = BackupService(storageService);
+        await _backupService.initialize();
+        AppServices.instance.setBackupService(_backupService);
+        AppLogger.info('新しいBackupServiceを初期化', 'BackupSettingsScreen');
+      }
+      
       final storageService = StorageService();
-      _backupService = BackupService(storageService);
       _exportService = DataExportService(storageService);
       
-      await _backupService.initialize();
       _backupService.events.listen(_handleBackupEvent);
       
       if (mounted) {
@@ -234,6 +246,16 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> with Ticker
                           label: const Text('Google Driveに接続'),
                         ),
                       if (_backupService.isCloudConnected) ...[
+                        ElevatedButton.icon(
+                          onPressed: () => _refreshAuthentication(),
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('認証更新'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         ElevatedButton.icon(
                           onPressed: () => _disconnectFromCloud(),
                           icon: const Icon(Icons.cloud_off),
@@ -474,6 +496,37 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> with Ticker
   
   Future<void> _disconnectFromCloud() async {
     await _backupService.disconnectFromCloud();
+  }
+  
+  Future<void> _refreshAuthentication() async {
+    try {
+      _showSnackBar('認証を更新中...', isError: false);
+      
+      if (_backupService.isCloudConnected) {
+        // 直接認証リフレッシュを試行（切断せずに）
+        final success = await _backupService.connectToCloud(CloudStorageType.googleDrive);
+        
+        if (success) {
+          _showSnackBar('認証の更新が完了しました', isError: false);
+          setState(() {}); // UI更新
+        } else {
+          _showSnackBar('認証の更新に失敗しました。完全に再接続を試します。', isError: false);
+          
+          // 失敗時のみ完全な再接続
+          await _backupService.disconnectFromCloud();
+          final retrySuccess = await _backupService.connectToCloud(CloudStorageType.googleDrive);
+          
+          if (retrySuccess) {
+            _showSnackBar('再接続が完了しました', isError: false);
+            setState(() {});
+          } else {
+            _showSnackBar('再接続に失敗しました', isError: true);
+          }
+        }
+      }
+    } catch (e) {
+      _showSnackBar('認証更新エラー: $e', isError: true);
+    }
   }
   
   Future<void> _toggleAutoBackup(bool enabled) async {

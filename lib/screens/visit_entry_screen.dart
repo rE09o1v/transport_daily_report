@@ -249,7 +249,7 @@ class _VisitEntryScreenState extends State<VisitEntryScreen> {
       if (mounted) {
         final positionText = currentPosition != null ? '位置情報付きで' : '';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('訪問記録を${positionText}保存しました')),
+          SnackBar(content: Text('訪問記録を$positionText保存しました')),
         );
         Navigator.of(context).pop(true);
       }

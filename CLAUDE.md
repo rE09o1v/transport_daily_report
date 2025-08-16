@@ -103,7 +103,7 @@ intl: ^0.19.0
 # 開発開始
 flutter pub get
 flutter analyze  # 問題確認
-flutter run -d chrome  # Web開発
+flutter run -d emulator-5556  # Web開発
 
 # 品質チェック
 flutter analyze

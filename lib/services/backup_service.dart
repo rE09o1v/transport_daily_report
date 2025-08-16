@@ -6,6 +6,7 @@ import 'storage_service.dart';
 import 'cloud_storage_interface.dart';
 import 'google_drive_service.dart';
 import 'app_state_service.dart';
+import '../utils/logger.dart';
 import '../models/visit_record.dart';
 import '../models/client.dart';
 import '../models/daily_record.dart';
@@ -16,6 +17,13 @@ class BackupService {
   static const String _configKey = 'backup_config';
   static const String _lastBackupKey = 'last_backup_time';
   static const String _currentVersion = '1.0.0';
+  
+  // シングルトンパターン
+  static BackupService? _instance;
+  static BackupService getInstance(StorageService storageService) {
+    _instance ??= BackupService._internal(storageService);
+    return _instance!;
+  }
   
   final StorageService _storageService;
   CloudStorageInterface? _cloudStorage;
@@ -32,7 +40,12 @@ class BackupService {
   final StreamController<BackupEvent> _eventController = StreamController<BackupEvent>.broadcast();
   Stream<BackupEvent> get events => _eventController.stream;
   
-  BackupService(this._storageService);
+  BackupService._internal(this._storageService);
+  
+  // 外部用のファクトリーコンストラクター
+  factory BackupService(StorageService storageService) {
+    return getInstance(storageService);
+  }
   
   /// 初期化
   Future<void> initialize() async {
@@ -83,9 +96,23 @@ class BackupService {
           throw UnimplementedError('Firebase Storage is not implemented yet');
       }
       
+      // 認証状態ストリームの監視開始
+      if (_cloudStorage is GoogleDriveService) {
+        final googleDriveService = _cloudStorage as GoogleDriveService;
+        googleDriveService.authStateChanges.listen((account) {
+          if (account != null) {
+            _eventController.add(BackupEvent.cloudConnected(account.displayName ?? 'Unknown'));
+            // 接続成功時にサービス情報を保存
+            _saveCloudServiceInfo('google_drive');
+          } else {
+            _eventController.add(BackupEvent.cloudDisconnected());
+          }
+        });
+      }
+      
       final success = await _cloudStorage!.connect();
       if (success) {
-        _eventController.add(BackupEvent.cloudConnected(_cloudStorage!.currentUser ?? 'Unknown'));
+        await _saveCloudServiceInfo(type.name);
       } else {
         _lastError = _cloudStorage!.lastError ?? 'クラウド接続に失敗しました';
         _eventController.add(BackupEvent.error(_lastError!));
@@ -475,14 +502,77 @@ class BackupService {
     _backupTimer = null;
   }
   
-  /// クラウドストレージを初期化
+  /// クラウドストレージを初期化（認証リフレッシュ機能付き）
   Future<void> _initializeCloudStorage() async {
-    // 前回接続していたサービスがあれば自動接続を試行
     final prefs = await SharedPreferences.getInstance();
-    final lastService = prefs.getString('last_cloud_service');
     
-    if (lastService == 'google_drive') {
-      await connectToCloud(CloudStorageType.googleDrive);
+    // Google Drive自動接続を必ず試行（設定されていない場合もデフォルトで試行）
+    AppLogger.info('Google Drive自動接続を開始', 'BackupService');
+    
+    // Google Driveサービスを初期化
+    _cloudStorage = GoogleDriveService();
+    
+    // 認証状態ストリームの監視開始
+    if (_cloudStorage is GoogleDriveService) {
+      final googleDriveService = _cloudStorage as GoogleDriveService;
+      googleDriveService.authStateChanges.listen((account) {
+        if (account != null) {
+          AppLogger.info('認証状態変更: ログイン済み (${account.displayName})', 'BackupService');
+          _eventController.add(BackupEvent.cloudConnected(account.displayName ?? 'Unknown'));
+          // last_cloud_serviceを保存
+          prefs.setString('last_cloud_service', 'google_drive');
+        } else {
+          AppLogger.info('認証状態変更: ログアウト', 'BackupService');
+          _eventController.add(BackupEvent.cloudDisconnected());
+        }
+      });
+    }
+    
+    // 認証復元と接続を試行
+    bool connected = false;
+    try {
+      // Google Drive認証を積極的に試行
+      if (_cloudStorage is GoogleDriveService) {
+        final googleDriveService = _cloudStorage as GoogleDriveService;
+        
+        // まず認証リフレッシュを試行
+        AppLogger.info('Google Drive認証リフレッシュを試行', 'BackupService');
+        await googleDriveService.refreshAuthentication();
+      }
+      
+      // 通常の接続を試行
+      AppLogger.info('Google Drive接続を試行', 'BackupService');
+      connected = await _cloudStorage!.connect();
+      
+      if (connected) {
+        AppLogger.info('Google Drive自動接続成功', 'BackupService');
+        await prefs.setString('last_cloud_service', 'google_drive');
+      } else {
+        AppLogger.info('初回接続失敗、追加のリフレッシュを試行', 'BackupService');
+        
+        // 追加のリフレッシュ試行
+        if (_cloudStorage is GoogleDriveService) {
+          final googleDriveService = _cloudStorage as GoogleDriveService;
+          connected = await googleDriveService.refreshAuthentication();
+          
+          if (connected) {
+            AppLogger.info('追加リフレッシュで接続成功', 'BackupService');
+            await prefs.setString('last_cloud_service', 'google_drive');
+          } else {
+            AppLogger.warning('すべての自動接続試行が失敗', 'BackupService');
+          }
+        }
+      }
+      
+    } catch (e) {
+      AppLogger.error('Google Drive自動接続エラー', 'BackupService', e);
+      connected = false;
+    }
+    
+    // 接続に失敗した場合の処理
+    if (!connected) {
+      AppLogger.info('Google Drive自動接続に失敗 - 手動接続が必要', 'BackupService');
+      // 失敗してもサービスは保持（手動接続用）
     }
   }
   
@@ -518,6 +608,18 @@ class BackupService {
     }
   }
   
+  /// クラウドサービス情報を保存
+  Future<void> _saveCloudServiceInfo(String serviceName) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('last_cloud_service', serviceName);
+      await prefs.setString('last_connection_time', DateTime.now().toIso8601String());
+      AppLogger.debug('クラウドサービス情報を保存: $serviceName', 'BackupService');
+    } catch (e) {
+      AppLogger.warning('クラウドサービス情報の保存に失敗: $e', 'BackupService');
+    }
+  }
+
   /// リソースを解放
   void dispose() {
     _stopAutoBackup();
