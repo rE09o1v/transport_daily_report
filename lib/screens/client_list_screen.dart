@@ -6,6 +6,7 @@ import 'package:transport_daily_report/screens/location_map_picker_screen.dart';
 import 'package:transport_daily_report/screens/visit_entry_screen.dart';
 import 'package:transport_daily_report/services/storage_service.dart';
 import 'package:transport_daily_report/utils/ui_components.dart';
+import 'package:transport_daily_report/services/data_notifier_service.dart';
 
 class ClientListScreen extends StatefulWidget {
   const ClientListScreen({super.key});
@@ -14,7 +15,7 @@ class ClientListScreen extends StatefulWidget {
   _ClientListScreenState createState() => _ClientListScreenState();
 }
 
-class _ClientListScreenState extends State<ClientListScreen> {
+class _ClientListScreenState extends State<ClientListScreen> with DataNotifierMixin {
   final StorageService _storageService = StorageService();
   List<Client> _clients = [];
   bool _isLoading = true;
@@ -24,6 +25,15 @@ class _ClientListScreenState extends State<ClientListScreen> {
   void initState() {
     super.initState();
     _loadClients();
+  }
+
+  @override
+  void onDataNotification() {
+    if (dataNotifier.consumeClientsChanged()) {
+      if (mounted) {
+        _loadClients();
+      }
+    }
   }
 
   Future<void> _loadClients() async {
@@ -66,7 +76,7 @@ class _ClientListScreenState extends State<ClientListScreen> {
         builder: (context) => ClientDetailScreen(client: client),
       ),
     ).then((_) {
-      // 詳細画面から戻ってきたらリスト更新
+      // 詳細画面から戻ってきたらリスト更新（念のため）
       _loadClients();
     });
   }
@@ -254,7 +264,7 @@ class _ClientListScreenState extends State<ClientListScreen> {
 
               await _storageService.addClient(newClient);
               Navigator.pop(context);
-              _loadClients();
+              // addClient内で自動通知されるため、手動でのリロードは不要
             },
             child: const Text('保存'),
           ),
@@ -324,62 +334,54 @@ class _ClientListScreenState extends State<ClientListScreen> {
                         itemCount: filteredClients.length,
                         itemBuilder: (context, index) {
                           final client = filteredClients[index];
-                          return AnimatedListItem(
-                            index: index,
-                            child: ActionListCard(
-                              title: client.name,
-                              subtitle: _buildClientSubtitle(client),
-                              leading: _buildClientAvatar(client),
-                              actions: [
-                                IconButton(
-                                  icon: const Icon(Icons.add_location),
-                                  tooltip: '訪問記録作成',
-                                  onPressed: () => _createVisitRecord(client),
-                                ),
-                                PopupMenuButton<String>(
-                                  onSelected: (value) {
-                                    if (value == 'detail') {
-                                      _viewClientDetail(client);
-                                    } else if (value == 'visit') {
-                                      _createVisitRecord(client);
-                                    }
-                                  },
-                                  itemBuilder: (context) => [
-                                    const PopupMenuItem(
-                                      value: 'detail',
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.info_outline),
-                                          SizedBox(width: 8),
-                                          Text('詳細を見る'),
-                                        ],
-                                      ),
+                          return ActionListCard(
+                            title: client.name,
+                            subtitle: _buildClientSubtitle(client),
+                            leading: _buildClientAvatar(client),
+                            actions: [
+                              IconButton(
+                                icon: const Icon(Icons.add_location),
+                                tooltip: '訪問記録作成',
+                                onPressed: () => _createVisitRecord(client),
+                              ),
+                              PopupMenuButton<String>(
+                                onSelected: (value) {
+                                  if (value == 'detail') {
+                                    _viewClientDetail(client);
+                                  } else if (value == 'visit') {
+                                    _createVisitRecord(client);
+                                  }
+                                },
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 'detail',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.info_outline),
+                                        SizedBox(width: 8),
+                                        Text('詳細を見る'),
+                                      ],
                                     ),
-                                    const PopupMenuItem(
-                                      value: 'visit',
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.add_location),
-                                          SizedBox(width: 8),
-                                          Text('訪問記録作成'),
-                                        ],
-                                      ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'visit',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.add_location),
+                                        SizedBox(width: 8),
+                                        Text('訪問記録作成'),
+                                      ],
                                     ),
-                                  ],
-                                ),
-                              ],
-                              onTap: () => _viewClientDetail(client),
-                            ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                            onTap: () => _viewClientDetail(client),
                           );
                         },
                       ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAddClientDialog,
-        icon: const Icon(Icons.add),
-        label: const Text('新規登録'),
       ),
     );
   }
@@ -454,4 +456,4 @@ class _ClientListScreenState extends State<ClientListScreen> {
       ),
     );
   }
-} 
+}

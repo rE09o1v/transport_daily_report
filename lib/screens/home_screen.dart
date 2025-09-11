@@ -3,6 +3,7 @@ import 'package:transport_daily_report/screens/visit_list_screen.dart';
 import 'package:transport_daily_report/screens/visit_entry_screen.dart';
 import 'package:transport_daily_report/screens/client_list_screen.dart';
 import 'package:transport_daily_report/screens/roll_call_list_screen.dart';
+import 'package:transport_daily_report/screens/roll_call_screen.dart';
 import 'package:transport_daily_report/screens/backup_settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -14,7 +15,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
-  
   
   // 各画面の参照を保持
   final List<GlobalKey<State>> _screenKeys = [
@@ -72,27 +72,38 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      floatingActionButton: _selectedIndex < 2 ? FloatingActionButton.extended(
-        heroTag: 'homeScreenFAB',
-        onPressed: () async {
-          // 新規訪問記録画面に遷移し、結果を待機
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const VisitEntryScreen()),
-          );
-          
-          // 訪問記録が登録された場合（result=true）
-          if (result == true && _selectedIndex == 0) {
-            // 訪問記録画面の参照がVisitListScreenStateの場合のみ実行
-            final visitListScreenKey = _screenKeys[0];
-            if (visitListScreenKey.currentState is VisitListScreenState) {
-              (visitListScreenKey.currentState as VisitListScreenState).refreshData();
-            }
-          }
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('新規記録'),
-      ) : null,
+      // FloatingActionButtonはタブに応じて表示を切り替え
+      floatingActionButton: _selectedIndex == 0 
+        ? FloatingActionButton.extended(
+            heroTag: null,
+            onPressed: () async {
+              // 新規訪問記録画面に遷移し、結果を待機
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const VisitEntryScreen()),
+              );
+              
+              // データは自動更新されるため追加処理不要
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('新規記録'),
+          )
+        : _selectedIndex == 2 
+          ? FloatingActionButton.extended(
+              heroTag: null,
+              onPressed: () async {
+                // 点呼記録画面に遷移
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const RollCallScreen()),
+                );
+                
+                // データは自動更新されるため追加処理不要
+              },
+              icon: const Icon(Icons.mic),
+              label: const Text('点呼記録'),
+            )
+          : null,
     );
   }
 }

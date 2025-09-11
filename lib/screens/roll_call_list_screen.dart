@@ -9,6 +9,8 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../utils/period_selector_dialog.dart';
 import '../utils/logger.dart';
+import '../widgets/mileage_history_widget.dart';
+import 'package:transport_daily_report/services/data_notifier_service.dart';
 
 class RollCallListScreen extends StatefulWidget {
   const RollCallListScreen({super.key});
@@ -17,17 +19,36 @@ class RollCallListScreen extends StatefulWidget {
   _RollCallListScreenState createState() => _RollCallListScreenState();
 }
 
-class _RollCallListScreenState extends State<RollCallListScreen> {
+class _RollCallListScreenState extends State<RollCallListScreen> 
+    with SingleTickerProviderStateMixin, DataNotifierMixin {
   final _storageService = StorageService();
   final _pdfService = PdfService();
   Map<DateTime, List<RollCallRecord>> _groupedRecords = {};
   bool _isLoading = true;
   bool _isGeneratingPdf = false;
+  
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _loadRollCallRecords();
+  }
+  
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void onDataNotification() {
+    if (dataNotifier.consumeRollCallRecordsChanged()) {
+      if (mounted) {
+        _loadRollCallRecords();
+      }
+    }
   }
 
   // 点呼記録を読み込み、日付でグループ化
@@ -113,7 +134,7 @@ class _RollCallListScreenState extends State<RollCallListScreen> {
     
     if (confirmed == true) {
       await _storageService.deleteRollCallRecord(record.id);
-      await _loadRollCallRecords();
+      // deleteRollCallRecord内で自動通知されるため、手動でのリロードは不要
       
       if (!mounted) return;
       
@@ -277,7 +298,20 @@ class _RollCallListScreenState extends State<RollCallListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('点呼記録'),
+        title: const Text('履歴・レポート'),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(
+              icon: Icon(Icons.assignment),
+              text: '点呼記録',
+            ),
+            Tab(
+              icon: Icon(Icons.speed),
+              text: 'メーター値',
+            ),
+          ],
+        ),
         actions: [
           PopupMenuButton<String>(
             enabled: !_isGeneratingPdf,
@@ -326,24 +360,28 @@ class _RollCallListScreenState extends State<RollCallListScreen> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const ModernLoadingIndicator(message: '点呼記録を読み込み中...')
-          : _groupedRecords.isEmpty
-              ? EmptyStateWidget(
-                  icon: Icons.assignment_outlined,
-                  title: '点呼記録がありません',
-                  subtitle: '新しい点呼記録を登録してください',
-                  action: PrimaryActionButton(
-                    text: '点呼記録作成',
-                    icon: Icons.add,
-                    onPressed: () => _navigateToRollCallScreen(),
-                  ),
-                )
-              : _buildRecordList(),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _navigateToRollCallScreen(),
-        icon: const Icon(Icons.add),
-        label: const Text('新規記録'),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          // 点呼記録タブ
+          _isLoading
+              ? const ModernLoadingIndicator(message: '点呼記録を読み込み中...')
+              : _groupedRecords.isEmpty
+                  ? EmptyStateWidget(
+                      icon: Icons.assignment_outlined,
+                      title: '点呼記録がありません',
+                      subtitle: '新しい点呼記録を登録してください',
+                      action: PrimaryActionButton(
+                        text: '点呼記録作成',
+                        icon: Icons.add,
+                        onPressed: () => _navigateToRollCallScreen(),
+                      ),
+                    )
+                  : _buildRecordList(),
+          
+          // メーター値履歴タブ
+          const MileageHistoryWidget(),
+        ],
       ),
     );
   }
@@ -396,14 +434,16 @@ class _RollCallListScreenState extends State<RollCallListScreen> {
     );
   }
 
-  /// 特定の点呼種別での画面遷移
+  /// 点呼記録画面への遷移
   void _navigateToRollCall(String type) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => RollCallScreen(type: type),
+        builder: (context) => const RollCallScreen(),
       ),
-    ).then((_) => _loadRollCallRecords());
+    ).then((_) {
+      // addRollCallRecord内で自動通知されるため、手動でのリロードは不要
+    });
   }
 
   /// 点呼記録リストの構築
@@ -415,9 +455,7 @@ class _RollCallListScreenState extends State<RollCallListScreen> {
         final date = _groupedRecords.keys.elementAt(index);
         final records = _groupedRecords[date]!;
         
-        return AnimatedListItem(
-          index: index,
-          child: Column(
+        return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // 日付ヘッダーカード
@@ -478,8 +516,7 @@ class _RollCallListScreenState extends State<RollCallListScreen> {
               if (index < _groupedRecords.length - 1)
                 const SizedBox(height: 16),
             ],
-          ),
-        );
+          );
       },
     );
   }
@@ -495,4 +532,4 @@ class _RollCallListScreenState extends State<RollCallListScreen> {
     
     return parts.join('\n');
   }
-} 
+}

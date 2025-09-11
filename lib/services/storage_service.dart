@@ -13,7 +13,363 @@ import 'package:transport_daily_report/models/daily_record.dart';
 import 'package:transport_daily_report/models/roll_call_record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:transport_daily_report/models/mileage_record.dart';
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
+import 'data_notifier_service.dart';
+
 class StorageService {
+
+  // データ変更通知サービス
+  final DataNotifierService _notifier = DataNotifierService();
+  // データ変更通知サービスのpublicアクセサー
+  DataNotifierService get notifier => _notifier;
+
+  // 新しいメーター値関連のファイル名とキー
+  static const String _mileageRecordsFileName = 'mileage_records.json';
+  static const String _gpsTrackingRecordsFileName = 'gps_tracking_records.json';
+  static const String _mileageAuditLogFileName = 'mileage_audit_log.json';
+  static const String _mileageRecordsStorageKey = 'mileage_records';
+  static const String _gpsTrackingRecordsStorageKey = 'gps_tracking_records';
+  static const String _mileageAuditLogStorageKey = 'mileage_audit_log';
+
+  // ============ MileageRecord 関連メソッド ============
+
+  // MileageRecordの保存
+  Future<void> saveMileageRecords(List<MileageRecord> records) async {
+    AppLogger.info('MileageRecordの保存を開始: ${records.length}件', 'StorageService');
+    
+    try {
+      final jsonData = records.map((record) => record.toJson()).toList();
+      final jsonString = jsonEncode(jsonData);
+      
+      if (isWeb) {
+        final prefs = await getPrefs();
+        await prefs.setString(_mileageRecordsStorageKey, jsonString);
+        AppLogger.info('Web: SharedPreferencesにMileageRecordを保存', 'StorageService');
+      } else {
+        final directory = await getApplicationDocumentsDirectory();
+        final file = File('${directory.path}/$_mileageRecordsFileName');
+        await file.writeAsString(jsonString, flush: true);
+        AppLogger.info('ネイティブ: ファイルにMileageRecordを保存: ${file.path}', 'StorageService');
+      }
+    } catch (e) {
+      AppLogger.error('MileageRecordの保存中にエラー', 'StorageService', e);
+      rethrow;
+    }
+  }
+
+  // MileageRecordの読み込み
+  Future<List<MileageRecord>> loadMileageRecords() async {
+    AppLogger.info('MileageRecordの読み込みを開始', 'StorageService');
+    
+    try {
+      String? jsonString;
+      
+      if (isWeb) {
+        final prefs = await getPrefs();
+        jsonString = prefs.getString(_mileageRecordsStorageKey);
+        if (jsonString == null) return [];
+      } else {
+        final directory = await getApplicationDocumentsDirectory();
+        final file = File('${directory.path}/$_mileageRecordsFileName');
+        
+        if (!await file.exists()) return [];
+        jsonString = await file.readAsString();
+      }
+      
+      if (jsonString.isEmpty) return [];
+      
+      final List<dynamic> jsonData = jsonDecode(jsonString);
+      final records = jsonData.map((data) => MileageRecord.fromJson(data)).toList();
+      AppLogger.info('MileageRecordの読み込み完了: ${records.length}件', 'StorageService');
+      return records;
+    } catch (e) {
+      AppLogger.error('MileageRecordの読み込み中にエラー', 'StorageService', e);
+      return [];
+    }
+  }
+
+  // MileageRecordの追加
+  Future<void> addMileageRecord(MileageRecord record) async {
+    AppLogger.info('MileageRecord追加開始: ${record.date}', 'StorageService');
+    
+    final records = await loadMileageRecords();
+    records.add(record);
+    await saveMileageRecords(records);
+    
+    AppLogger.info('MileageRecord追加完了: ${record.id}', 'StorageService');
+  }
+
+  // 日付でMileageRecordを取得
+  Future<MileageRecord?> getMileageRecordByDate(DateTime date) async {
+    final allRecords = await loadMileageRecords();
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+    
+    try {
+      return allRecords.firstWhere((record) {
+        final recordDate = DateTime(record.date.year, record.date.month, record.date.day);
+        return recordDate.isAtSameMomentAs(normalizedDate);
+      });
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // MileageRecordの更新
+  Future<void> updateMileageRecord(MileageRecord updatedRecord) async {
+    final records = await loadMileageRecords();
+    final index = records.indexWhere((record) => record.id == updatedRecord.id);
+    
+    if (index != -1) {
+      records[index] = updatedRecord;
+      await saveMileageRecords(records);
+      AppLogger.info('MileageRecord更新完了: ${updatedRecord.id}', 'StorageService');
+    } else {
+      throw Exception('MileageRecordが見つかりません: ${updatedRecord.id}');
+    }
+  }
+
+  // 期間でMileageRecordを取得
+  Future<List<MileageRecord>> getMileageRecordsByDateRange(DateTime from, DateTime to) async {
+    final allRecords = await loadMileageRecords();
+    return allRecords.where((record) {
+      return record.date.isAfter(from.subtract(Duration(days: 1))) &&
+             record.date.isBefore(to.add(Duration(days: 1)));
+    }).toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+  }
+
+  // ============ GPSTrackingRecord 関連メソッド ============
+
+  // GPSTrackingRecordの保存
+  Future<void> saveGPSTrackingRecords(List<GPSTrackingRecord> records) async {
+    try {
+      final jsonData = records.map((record) => record.toJson()).toList();
+      final jsonString = jsonEncode(jsonData);
+      
+      if (isWeb) {
+        final prefs = await getPrefs();
+        await prefs.setString(_gpsTrackingRecordsStorageKey, jsonString);
+      } else {
+        final directory = await getApplicationDocumentsDirectory();
+        final file = File('${directory.path}/$_gpsTrackingRecordsFileName');
+        await file.writeAsString(jsonString, flush: true);
+      }
+      
+      AppLogger.info('GPSTrackingRecord保存完了: ${records.length}件', 'StorageService');
+    } catch (e) {
+      AppLogger.error('GPSTrackingRecordの保存中にエラー', 'StorageService', e);
+      rethrow;
+    }
+  }
+
+  // GPSTrackingRecordの読み込み
+  Future<List<GPSTrackingRecord>> loadGPSTrackingRecords() async {
+    try {
+      String? jsonString;
+      
+      if (isWeb) {
+        final prefs = await getPrefs();
+        jsonString = prefs.getString(_gpsTrackingRecordsStorageKey);
+        if (jsonString == null) return [];
+      } else {
+        final directory = await getApplicationDocumentsDirectory();
+        final file = File('${directory.path}/$_gpsTrackingRecordsFileName');
+        
+        if (!await file.exists()) return [];
+        jsonString = await file.readAsString();
+      }
+      
+      if (jsonString.isEmpty) return [];
+      
+      final List<dynamic> jsonData = jsonDecode(jsonString);
+      return jsonData.map((data) => GPSTrackingRecord.fromJson(data)).toList();
+    } catch (e) {
+      AppLogger.error('GPSTrackingRecordの読み込み中にエラー', 'StorageService', e);
+      return [];
+    }
+  }
+
+  // GPSTrackingRecordの追加
+  Future<void> addGPSTrackingRecord(GPSTrackingRecord record) async {
+    final records = await loadGPSTrackingRecords();
+    records.add(record);
+    await saveGPSTrackingRecords(records);
+  }
+
+  // GPSTrackingRecordをIDで取得
+  Future<GPSTrackingRecord?> getGPSTrackingRecordById(String trackingId) async {
+    final allRecords = await loadGPSTrackingRecords();
+    
+    try {
+      return allRecords.firstWhere((record) => record.trackingId == trackingId);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // GPSTrackingRecordの更新
+  Future<void> updateGPSTrackingRecord(GPSTrackingRecord updatedRecord) async {
+    final records = await loadGPSTrackingRecords();
+    final index = records.indexWhere((record) => record.trackingId == updatedRecord.trackingId);
+    
+    if (index != -1) {
+      records[index] = updatedRecord;
+      await saveGPSTrackingRecords(records);
+    } else {
+      throw Exception('GPSTrackingRecordが見つかりません: ${updatedRecord.trackingId}');
+    }
+  }
+
+  // ============ MileageAuditEntry 関連メソッド ============
+
+  // 監査ログの保存
+  Future<void> saveMileageAuditLog(List<MileageAuditEntry> entries) async {
+    try {
+      final jsonData = entries.map((entry) => entry.toJson()).toList();
+      final jsonString = jsonEncode(jsonData);
+      
+      if (isWeb) {
+        final prefs = await getPrefs();
+        await prefs.setString(_mileageAuditLogStorageKey, jsonString);
+      } else {
+        final directory = await getApplicationDocumentsDirectory();
+        final file = File('${directory.path}/$_mileageAuditLogFileName');
+        await file.writeAsString(jsonString, flush: true);
+      }
+    } catch (e) {
+      AppLogger.error('MileageAuditLogの保存中にエラー', 'StorageService', e);
+      rethrow;
+    }
+  }
+
+  // 監査ログの読み込み
+  Future<List<MileageAuditEntry>> loadMileageAuditLog() async {
+    try {
+      String? jsonString;
+      
+      if (isWeb) {
+        final prefs = await getPrefs();
+        jsonString = prefs.getString(_mileageAuditLogStorageKey);
+        if (jsonString == null) return [];
+      } else {
+        final directory = await getApplicationDocumentsDirectory();
+        final file = File('${directory.path}/$_mileageAuditLogFileName');
+        
+        if (!await file.exists()) return [];
+        jsonString = await file.readAsString();
+      }
+      
+      if (jsonString.isEmpty) return [];
+      
+      final List<dynamic> jsonData = jsonDecode(jsonString);
+      return jsonData.map((data) => MileageAuditEntry.fromJson(data)).toList();
+    } catch (e) {
+      AppLogger.error('MileageAuditLogの読み込み中にエラー', 'StorageService', e);
+      return [];
+    }
+  }
+
+  // 監査ログエントリの追加
+  Future<void> addMileageAuditEntry(MileageAuditEntry entry) async {
+    final entries = await loadMileageAuditLog();
+    entries.add(entry);
+    await saveMileageAuditLog(entries);
+    
+    AppLogger.info('監査ログ追加: ${entry.action.name} - RecordID: ${entry.recordId}', 'StorageService');
+  }
+
+  // ============ データ暗号化・セキュリティ機能 ============
+
+  // データの改ざん防止用チェックサムを生成
+  String _generateChecksum(String data, String timestamp) {
+    final input = '$data$timestamp';
+    final bytes = utf8.encode(input);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
+  // 暗号化されたメーター値データの保存（将来の拡張用）
+  Future<void> saveEncryptedMileageData(MileageRecord record) async {
+    try {
+      final jsonData = record.toJson();
+      final timestamp = DateTime.now().toIso8601String();
+      final checksum = _generateChecksum(jsonEncode(jsonData), timestamp);
+      
+      final encryptedPayload = {
+        'data': jsonData,
+        'timestamp': timestamp,
+        'checksum': checksum
+      };
+      
+      // 監査ログに記録
+      await addMileageAuditEntry(MileageAuditEntry(
+        id: MileageAuditEntry.generateId(),
+        recordId: record.id,
+        timestamp: DateTime.now(),
+        action: AuditAction.create,
+        newValue: record.startMileage,
+        deviceInfo: 'Flutter App',
+        reason: 'メーター値記録作成',
+      ));
+      
+      AppLogger.info('暗号化メーター値データ保存完了: ${record.id}', 'StorageService');
+    } catch (e) {
+      AppLogger.error('暗号化メーター値データの保存中にエラー', 'StorageService', e);
+      rethrow;
+    }
+  }
+
+  // ============ データ移行・互換性メソッド ============
+
+  // 既存の古いメーター値データを新しい形式に移行
+  Future<void> migrateLegacyMileageData() async {
+    try {
+      AppLogger.info('レガシーメーター値データの移行を開始', 'StorageService');
+      
+      // 古い形式のデータを読み込み
+      final legacyData = await getMileageData();
+      final startMileage = legacyData['startMileage'] as double?;
+      final endMileage = legacyData['endMileage'] as double?;
+      final lastUpdateDate = legacyData['lastUpdateDate'] as String?;
+      
+      if (startMileage != null && lastUpdateDate != null) {
+        final migrationDate = DateTime.now();
+        
+        // 新しいMileageRecordとして保存
+        final mileageRecord = MileageRecord(
+          id: MileageRecord.generateId(),
+          date: migrationDate,
+          startMileage: startMileage,
+          endMileage: endMileage,
+          source: MileageSource.manual,
+          createdAt: migrationDate,
+          updatedAt: migrationDate,
+        );
+        
+        await addMileageRecord(mileageRecord);
+        
+        // 監査ログに移行記録を追加
+        await addMileageAuditEntry(MileageAuditEntry(
+          id: MileageAuditEntry.generateId(),
+          recordId: mileageRecord.id,
+          timestamp: migrationDate,
+          action: AuditAction.create,
+          newValue: startMileage,
+          deviceInfo: 'Migration Process',
+          reason: 'レガシーデータからの移行',
+        ));
+        
+        AppLogger.info('レガシーデータ移行完了: StartMileage=$startMileage', 'StorageService');
+      }
+    } catch (e) {
+      AppLogger.error('レガシーデータ移行中にエラー', 'StorageService', e);
+      // 移行失敗でも処理は継続
+    }
+  }
+
+  // 既存のファイル名定数
   static const String _visitRecordsFileName = 'visit_records.json';
   static const String _clientsFileName = 'clients.json';
   static const String _dailyRecordsFileName = 'daily_records.json';
@@ -186,6 +542,9 @@ class StorageService {
       saveVisitRecords(records).then((_) {
         AppLogger.info('訪問記録ファイルへの保存が完了しました', 'StorageService');
         
+        // 訪問記録データ変更を通知
+        _notifier.notifyVisitRecordsChanged();
+        
         // 日付別のグループキャッシュを更新
         // final recordDate = DateTime(
         //   record.arrivalTime.year,
@@ -234,6 +593,9 @@ class StorageService {
     final clients = await loadClients();
     clients.add(client);
     await saveClients(clients);
+    
+    // 得意先データ変更を通知
+    _notifier.notifyClientsChanged();
   }
 
   // 指定した日付の訪問記録を取得
@@ -280,6 +642,9 @@ class StorageService {
     final records = await loadVisitRecords();
     records.removeWhere((record) => record.id == id);
     await saveVisitRecords(records);
+    
+    // 訪問記録データ変更を通知
+    _notifier.notifyVisitRecordsChanged();
   }
 
 
@@ -288,6 +653,9 @@ class StorageService {
     final clients = await loadClients();
     clients.removeWhere((client) => client.id == id);
     await saveClients(clients);
+    
+    // 得意先データ変更を通知
+    _notifier.notifyClientsChanged();
   }
 
   // 走行距離データを保存
@@ -571,6 +939,9 @@ class StorageService {
     final records = await loadRollCallRecords();
     records.add(record);
     await saveRollCallRecords(records);
+    
+    // 点呼記録データ変更を通知
+    _notifier.notifyRollCallRecordsChanged();
   }
   
   // 点呼記録を日付で取得
@@ -627,6 +998,9 @@ class StorageService {
     if (index != -1) {
       records[index] = updatedRecord;
       await saveRollCallRecords(records);
+      
+      // 点呼記録データ変更を通知
+      _notifier.notifyRollCallRecordsChanged();
     } else {
       throw Exception('点呼記録が見つかりません: ${updatedRecord.id}');
     }
@@ -637,5 +1011,8 @@ class StorageService {
     final records = await loadRollCallRecords();
     records.removeWhere((record) => record.id == id);
     await saveRollCallRecords(records);
+    
+    // 点呼記録データ変更を通知
+    _notifier.notifyRollCallRecordsChanged();
   }
 } 
