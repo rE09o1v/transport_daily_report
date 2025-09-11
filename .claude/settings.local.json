@@ -5,7 +5,16 @@
       "mcp__serena__find_symbol",
       "mcp__serena__search_for_pattern",
       "mcp__serena__insert_after_symbol",
-      "mcp__serena__replace_symbol_body"
+      "mcp__serena__replace_symbol_body",
+      "mcp__spec-workflow__create-spec-doc",
+      "mcp__serena__find_file",
+      "mcp__serena__activate_project",
+      "mcp__serena__get_symbols_overview",
+      "Bash(flutter analyze:*)",
+      "Bash(flutter run:*)",
+      "Bash(flutter clean:*)",
+      "Bash(flutter pub:*)",
+      "mcp__serena__insert_before_symbol"
     ],
     "deny": [],
     "ask": []
