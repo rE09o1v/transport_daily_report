@@ -71,8 +71,8 @@ class _RollCallScreenState extends State<RollCallScreen> {
 
     if(isTracking) {
         final prefs = await SharedPreferences.getInstance();
-        _startMileage = prefs.getDouble(startMileageKey);
-        currentGpsDistance = prefs.getDouble(distanceKey) ?? 0.0;
+        _startMileage = prefs.getDouble(GPSTrackingService.startMileageKey);
+        currentGpsDistance = prefs.getDouble(GPSTrackingService.distanceKey) ?? 0.0;
     }
 
     setState(() {
@@ -198,7 +198,7 @@ class _RollCallScreenState extends State<RollCallScreen> {
         await _gpsService.stopTracking();
         await Future.delayed(const Duration(milliseconds: 500));
         final prefs = await SharedPreferences.getInstance();
-        final finalDistance = prefs.getDouble(distanceKey) ?? _gpsService.currentDistance.value;
+        final finalDistance = prefs.getDouble(GPSTrackingService.distanceKey) ?? _gpsService.currentDistance.value;
         _updateEndMileage(finalDistance);
       }
 

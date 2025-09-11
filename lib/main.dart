@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:transport_daily_report/screens/pre_authenticated_home_screen.dart';
 import 'package:transport_daily_report/config/app_config.dart';
@@ -26,8 +25,6 @@ void main() async {
     print('dotenv読み込みエラー（無視されます）: $e');
   }
   
-  // Firebase初期化
-  await Firebase.initializeApp();
   
   // 設定状況を出力（デバッグモード時のみ）
   if (AppConfig.isDebugMode) {

@@ -31,11 +31,6 @@ class AppConfig {
   // Android版ではClient Secretは不要です
   static const String googleDriveClientSecret = '';
   
-  // Firebase設定（firebase_optionsから自動生成）
-  static const String firebaseProjectId = String.fromEnvironment(
-    'FIREBASE_PROJECT_ID',
-    defaultValue: 'your-firebase-project-id',
-  );
   
   // アプリ情報
   static const String appName = 'Transport Daily Report';
@@ -101,7 +96,6 @@ class ConfigValidator {
     AppLogger.info('バージョン: ${AppConfig.appVersion}', 'ConfigValidator');
     AppLogger.info('デバッグモード: ${AppConfig.isDebugMode}', 'ConfigValidator');
     AppLogger.info('Google Drive設定: ${validateGoogleDriveConfig() ? "✅ 設定済み" : "❌ 未設定"}', 'ConfigValidator');
-    AppLogger.info('Firebase Project ID: ${AppConfig.firebaseProjectId}', 'ConfigValidator');
     AppLogger.info('==================', 'ConfigValidator');
   }
 }

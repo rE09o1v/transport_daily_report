@@ -91,9 +91,6 @@ class BackupService {
         case CloudStorageType.googleDrive:
           _cloudStorage = GoogleDriveService();
           break;
-        case CloudStorageType.firebaseStorage:
-          // TODO: Firebase Storage実装
-          throw UnimplementedError('Firebase Storage is not implemented yet');
       }
       
       // 認証状態ストリームの監視開始

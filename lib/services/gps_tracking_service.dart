@@ -9,6 +9,11 @@ import 'package:transport_daily_report/services/background_service.dart'; // For
 /// UIとバックグラウンドサービス間の通信を仲介する。
 /// 実際の追跡ロジックはバックグラウンドサービスが担当する。
 class GPSTrackingService {
+  // SharedPreferencesのキー定数
+  static const String distanceKey = 'gps_current_distance';
+  static const String startMileageKey = 'start_mileage';
+  static const String lastPositionKeyLat = 'last_position_lat';
+  static const String lastPositionKeyLon = 'last_position_lon';
   static final GPSTrackingService _instance = GPSTrackingService._internal();
   factory GPSTrackingService() => _instance;
 

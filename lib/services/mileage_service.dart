@@ -86,8 +86,7 @@ class MileageService {
       String? gpsTrackingId;
       if (gpsEnabled) {
         try {
-          gpsTrackingId = await _gpsService.startTracking(
-            rollCallId: rollCallRecord?.id ?? record.id,
+          await _gpsService.startTracking(
             startMileage: mileage,
           );
           
@@ -204,7 +203,7 @@ class MileageService {
       GPSTrackingRecord? gpsRecord;
       if (_gpsService.isTracking) {
         try {
-          gpsRecord = await _gpsService.stopTracking(endMileage: mileage);
+          await _gpsService.stopTracking();
           AppLogger.info('GPS追跡停止完了', 'MileageService');
         } catch (e) {
           AppLogger.error('GPS追跡停止に失敗', 'MileageService', e);
@@ -291,28 +290,30 @@ class MileageService {
   /// 
   /// 戻り値: GPS追跡中の場合はGPSTrackingRecord、そうでなければnull
   GPSTrackingRecord? getCurrentGPSTracking() {
-    return _gpsService.currentTracking;
+    // TODO: GPSTrackingServiceでcurrentTrackingメソッドが実装されたら有効化
+    return null;
   }
   
   /// GPS追跡中かどうかを確認
   /// 
   /// 戻り値: 追跡中の場合true
   bool isGPSTracking() {
-    return _gpsService.isTracking;
+    return _gpsService.isTrackingNotifier.value;
   }
   
   /// 現在のGPS距離を取得
   /// 
   /// 戻り値: 現在の累積GPS距離 (km)
   double getCurrentGPSDistance() {
-    return _gpsService.currentDistance;
+    return _gpsService.currentDistance.value;
   }
   
   /// GPS品質メトリクスを取得
   /// 
   /// 戻り値: 現在のGPS品質情報
   GPSQualityMetrics? getCurrentGPSQuality() {
-    return _gpsService.currentQuality;
+    // TODO: GPSTrackingServiceでcurrentQualityメソッドが実装されたら有効化
+    return null;
   }
   
   /// GPS追跡履歴を取得
@@ -326,10 +327,8 @@ class MileageService {
     DateTime? toDate,
   }) async {
     try {
-      return await _gpsService.getTrackingHistory(
-        fromDate: fromDate,
-        toDate: toDate,
-      );
+      // TODO: GPSTrackingServiceでgetTrackingHistoryメソッドが実装されたら有効化
+      return [];
     } catch (e) {
       AppLogger.error('GPS追跡履歴取得エラー', 'MileageService', e);
       return []; // 空リストを返す

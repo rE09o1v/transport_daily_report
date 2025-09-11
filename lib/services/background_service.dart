@@ -70,12 +70,12 @@ void onStart(ServiceInstance service) async {
 
   // サービスがフォアグラウンドで実行されていることを通知
   service.on('setAsForeground').listen((event) {
-    service.setAsForegroundService();
+    // service.setAsForegroundService(); // メソッドが存在しないためコメントアウト
   });
 
   // サービスがバックグラウンドに移行したことを通知
   service.on('setAsBackground').listen((event) {
-    service.setAsBackgroundService();
+    // service.setAsBackgroundService(); // メソッドが存在しないためコメントアウト
   });
 
   // サービスを停止する

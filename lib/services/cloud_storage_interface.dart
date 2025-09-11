@@ -56,7 +56,6 @@ abstract class CloudStorageInterface {
 /// クラウドストレージサービスの種類
 enum CloudStorageType {
   googleDrive,
-  firebaseStorage,
   // 将来的に他のサービスも追加可能
 }
 

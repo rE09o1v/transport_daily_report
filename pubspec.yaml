@@ -50,9 +50,6 @@ dependencies:
   # Cloud Storage
   googleapis: ^13.2.0
   google_sign_in: ^6.2.1
-  firebase_core: ^3.6.0
-  firebase_storage: ^12.3.2
-  cloud_firestore: ^5.4.4
   # Encryption
   crypto: ^3.0.5
   # CSV Export
