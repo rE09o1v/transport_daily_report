@@ -205,13 +205,23 @@ class _RollCallScreenState extends State<RollCallScreen> {
       final record = _createRollCallRecord('end');
       await _storageService.addRollCallRecord(record);
 
+      // GPS追跡が有効だった場合、移動距離をDailyRecordに保存
+      if (_gpsTrackingEnabled && _calculatedDistance != null) {
+        await _storageService.saveTotalDistance(_calculatedDistance! * 1000); // キロメートルをメートルに変換
+      }
+
       if (!mounted) return;
       setState(() {
         _hasEndRecord = true;
         _isProcessing = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('終業点呼を記録しました'), backgroundColor: Colors.green),
+        SnackBar(
+          content: Text(_gpsTrackingEnabled 
+            ? '終業点呼を記録しました（移動距離: ${_calculatedDistance?.toStringAsFixed(2)}km）' 
+            : '終業点呼を記録しました'),
+          backgroundColor: Colors.green,
+        ),
       );
     } catch (e) {
       setState(() => _isProcessing = false);

@@ -4,6 +4,7 @@ class DailyRecord {
   final double? endMileage; // 帰社時の走行距離
   final double? morningAlcoholValue; // 朝のアルコール検出値
   final double? eveningAlcoholValue; // 夜のアルコール検出値
+  final double? totalDistance; // GPS計測による総移動距離（メートル）
 
   DailyRecord({
     required this.date,
@@ -11,6 +12,7 @@ class DailyRecord {
     this.endMileage,
     this.morningAlcoholValue,
     this.eveningAlcoholValue,
+    this.totalDistance,
   });
 
   // 日付の文字列をYYYY-MM-DD形式に正規化
@@ -26,6 +28,14 @@ class DailyRecord {
     return null;
   }
 
+  // GPS計測による移動距離をキロメートル単位で取得
+  double? get totalDistanceInKm {
+    if (totalDistance != null) {
+      return totalDistance! / 1000.0;
+    }
+    return null;
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'date': date,
@@ -33,6 +43,7 @@ class DailyRecord {
       'endMileage': endMileage,
       'morningAlcoholValue': morningAlcoholValue,
       'eveningAlcoholValue': eveningAlcoholValue,
+      'totalDistance': totalDistance,
     };
   }
 
@@ -43,6 +54,7 @@ class DailyRecord {
       endMileage: json['endMileage']?.toDouble(),
       morningAlcoholValue: json['morningAlcoholValue']?.toDouble(),
       eveningAlcoholValue: json['eveningAlcoholValue']?.toDouble(),
+      totalDistance: json['totalDistance']?.toDouble(),
     );
   }
 
@@ -59,6 +71,6 @@ class DailyRecord {
 
   @override
   String toString() {
-    return 'DailyRecord(date: $date, startMileage: $startMileage, endMileage: $endMileage, morningAlcoholValue: $morningAlcoholValue, eveningAlcoholValue: $eveningAlcoholValue)';
+    return 'DailyRecord(date: $date, startMileage: $startMileage, endMileage: $endMileage, morningAlcoholValue: $morningAlcoholValue, eveningAlcoholValue: $eveningAlcoholValue, totalDistance: $totalDistance)';
   }
 } 

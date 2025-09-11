@@ -1,7 +1,24 @@
+import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 import 'package:transport_daily_report/models/client.dart';
 
 class LocationService {
+  // 移動距離計測用の変数
+  double _totalDistance = 0.0;
+  Position? _lastPosition;
+  StreamSubscription<Position>? _positionStream;
+  DateTime? _trackingStartTime;
+  
+  // 距離計測状態の監視用
+  final StreamController<double> _distanceController = StreamController<double>.broadcast();
+  Stream<double> get distanceStream => _distanceController.stream;
+  
+  // 現在の総移動距離を取得
+  double get totalDistance => _totalDistance;
+  
+  // 距離計測が実行中かどうか
+  bool get isTracking => _positionStream != null;
+
   // 位置情報のパーミッション取得とチェック
   Future<bool> checkLocationPermission() async {
     bool serviceEnabled;
@@ -72,5 +89,91 @@ class LocationService {
 
       return distance <= maxDistanceInMeters;
     }).toList();
+  }
+
+  // 移動距離の追跡を開始
+  Future<bool> startDistanceTracking() async {
+    try {
+      final hasPermission = await checkLocationPermission();
+      if (!hasPermission) {
+        return false;
+      }
+
+      // 既にトラッキング中の場合は停止してから開始
+      if (_positionStream != null) {
+        await stopDistanceTracking();
+      }
+
+      // 初期化
+      _totalDistance = 0.0;
+      _lastPosition = null;
+      _trackingStartTime = DateTime.now();
+
+      // 位置情報のストリームを開始（高精度、10秒間隔）
+      _positionStream = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 5, // 5メートル移動したら更新
+        ),
+      ).listen(
+        (Position position) {
+          _updateDistance(position);
+        },
+        onError: (error) {
+          print('Error in distance tracking: $error');
+        },
+      );
+
+      return true;
+    } catch (e) {
+      print('Error starting distance tracking: $e');
+      return false;
+    }
+  }
+
+  // 移動距離の追跡を停止
+  Future<void> stopDistanceTracking() async {
+    await _positionStream?.cancel();
+    _positionStream = null;
+    print('Distance tracking stopped. Total distance: ${_totalDistance.toStringAsFixed(2)}m');
+  }
+
+  // 移動距離をリセット
+  void resetDistance() {
+    _totalDistance = 0.0;
+    _lastPosition = null;
+    _trackingStartTime = DateTime.now();
+    _distanceController.add(_totalDistance);
+    print('Distance tracking reset');
+  }
+
+  // 位置情報が更新された際の距離計算
+  void _updateDistance(Position newPosition) {
+    if (_lastPosition != null) {
+      final distance = calculateDistance(
+        _lastPosition!.latitude,
+        _lastPosition!.longitude,
+        newPosition.latitude,
+        newPosition.longitude,
+      );
+      
+      // 現実的でない距離の変化（例：100m/秒以上）を除外
+      final timeElapsed = newPosition.timestamp != null && _lastPosition!.timestamp != null
+          ? newPosition.timestamp!.difference(_lastPosition!.timestamp!).inSeconds
+          : 1;
+      
+      if (timeElapsed > 0 && distance / timeElapsed < 100) { // 360km/h以下
+        _totalDistance += distance;
+        _distanceController.add(_totalDistance);
+        print('Distance updated: +${distance.toStringAsFixed(2)}m, Total: ${_totalDistance.toStringAsFixed(2)}m');
+      }
+    }
+    _lastPosition = newPosition;
+  }
+
+  // リソースの解放
+  void dispose() {
+    _positionStream?.cancel();
+    _distanceController.close();
   }
 } 

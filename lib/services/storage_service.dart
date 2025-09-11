@@ -780,6 +780,7 @@ class StorageService {
     double? endMileage,
     double? morningAlcoholValue,
     double? eveningAlcoholValue,
+    double? totalDistance,
   }) async {
     // 既存のデータを読み込む
     final allRecords = await loadDailyRecords();
@@ -796,6 +797,7 @@ class StorageService {
         endMileage: endMileage ?? existing.endMileage,
         morningAlcoholValue: morningAlcoholValue ?? existing.morningAlcoholValue,
         eveningAlcoholValue: eveningAlcoholValue ?? existing.eveningAlcoholValue,
+        totalDistance: totalDistance ?? existing.totalDistance,
       );
     } else {
       // 新しいレコードを追加
@@ -805,6 +807,7 @@ class StorageService {
         endMileage: endMileage,
         morningAlcoholValue: morningAlcoholValue,
         eveningAlcoholValue: eveningAlcoholValue,
+        totalDistance: totalDistance,
       ));
     }
     
@@ -975,6 +978,19 @@ class StorageService {
       endMileage: record.endMileage,
       morningAlcoholValue: record.morningAlcoholValue,
       eveningAlcoholValue: record.eveningAlcoholValue,
+      totalDistance: record.totalDistance,
+    );
+  }
+
+  // GPS追跡による移動距離を保存
+  Future<void> saveTotalDistance(double totalDistance) async {
+    final now = DateTime.now();
+    final dateStr = DailyRecord.normalizeDate(now);
+    
+    // 日ごとの記録に移動距離を保存
+    await saveDailyRecord(
+      dateStr,
+      totalDistance: totalDistance,
     );
   }
 

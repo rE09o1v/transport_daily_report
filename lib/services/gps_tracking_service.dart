@@ -1,23 +1,21 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:transport_daily_report/services/background_service.dart'; // For SharedPreferences keys
+import 'package:transport_daily_report/services/location_service.dart';
 
 /// GPS追跡サービス（コントローラー）
 ///
-/// UIとバックグラウンドサービス間の通信を仲介する。
-/// 実際の追跡ロジックはバックグラウンドサービスが担当する。
+/// LocationServiceを使用したシンプルなGPS追跡機能。
+/// 点呼記録画面での始業〜終業間の移動距離計測を担当する。
 class GPSTrackingService {
   // SharedPreferencesのキー定数
   static const String distanceKey = 'gps_current_distance';
   static const String startMileageKey = 'start_mileage';
-  static const String lastPositionKeyLat = 'last_position_lat';
-  static const String lastPositionKeyLon = 'last_position_lon';
   static final GPSTrackingService _instance = GPSTrackingService._internal();
   factory GPSTrackingService() => _instance;
 
-  final FlutterBackgroundService _service = FlutterBackgroundService();
+  final LocationService _locationService = LocationService();
+  StreamSubscription<double>? _distanceSubscription;
   
   // UIにリアルタイムの距離を通知するためのValueNotifier
   final ValueNotifier<double> currentDistance = ValueNotifier(0.0);
@@ -25,27 +23,20 @@ class GPSTrackingService {
   // サービスが実行中かどうかを管理するValueNotifier
   final ValueNotifier<bool> isTrackingNotifier = ValueNotifier(false);
 
-  GPSTrackingService._internal() {
-    // バックグラウンドサービスからの更新をリッスン
-    _service.on('update').listen((event) {
-      if (event != null && event['current_distance'] != null) {
-        final distance = event['current_distance'] as double;
-        currentDistance.value = distance;
-      }
-    });
+  double _startMileage = 0.0;
 
-    // サービスの実行状態をポーリングして確認
-    Timer.periodic(const Duration(seconds: 1), (timer) async {
-      final isRunning = await _service.isRunning();
-      if (isTrackingNotifier.value != isRunning) {
-        isTrackingNotifier.value = isRunning;
-        // サービスが停止していたら、最後の距離をSharedPreferencesから読み込む
-        if (!isRunning) {
-          final prefs = await SharedPreferences.getInstance();
-          currentDistance.value = prefs.getDouble(distanceKey) ?? 0.0;
-        }
-      }
+  GPSTrackingService._internal() {
+    // LocationServiceからの距離更新をリッスン
+    _distanceSubscription = _locationService.distanceStream.listen((distance) {
+      currentDistance.value = distance / 1000; // メートルをキロメートルに変換
+      _saveDistanceToPrefs(distance / 1000);
     });
+  }
+
+  // 距離をSharedPreferencesに保存
+  Future<void> _saveDistanceToPrefs(double distance) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(distanceKey, distance);
   }
 
   /// GPS追跡開始
@@ -53,27 +44,28 @@ class GPSTrackingService {
     required double startMileage,
   }) async {
     try {
-      final isRunning = await _service.isRunning();
-      if (isRunning) {
-        // 既に実行中の場合は何もしない
+      if (isTrackingNotifier.value) {
+        // 既に追跡中の場合は何もしない
         if (kDebugMode) {
-          print('Background service is already running.');
+          print('GPS tracking is already running.');
         }
         return;
       }
 
+      // 開始前の初期化
+      _startMileage = startMileage;
+      currentDistance.value = 0.0;
+      
       // SharedPreferencesをリセット
       final prefs = await SharedPreferences.getInstance();
       await prefs.setDouble(distanceKey, 0.0);
-      await prefs.remove(lastPositionKeyLat);
-      await prefs.remove(lastPositionKeyLon);
       await prefs.setDouble(startMileageKey, startMileage);
       
-      // サービスを開始
-      await _service.startService();
-      
-      // 開始コマンドを送信
-      _service.invoke('startTracking', {'start_mileage': startMileage});
+      // LocationServiceでGPS追跡を開始
+      final success = await _locationService.startDistanceTracking();
+      if (!success) {
+        throw GPSTrackingException('位置情報の許可が必要です');
+      }
 
       isTrackingNotifier.value = true;
       if (kDebugMode) {
@@ -90,15 +82,16 @@ class GPSTrackingService {
   /// GPS追跡停止
   Future<void> stopTracking() async {
     try {
-      final isRunning = await _service.isRunning();
-      if (!isRunning) return;
+      if (!isTrackingNotifier.value) return;
 
-      _service.invoke('stopService');
+      // LocationServiceのGPS追跡を停止
+      await _locationService.stopDistanceTracking();
       isTrackingNotifier.value = false;
 
-      // 最終的な距離をSharedPreferencesから読み込む
-      final prefs = await SharedPreferences.getInstance();
-      currentDistance.value = prefs.getDouble(distanceKey) ?? 0.0;
+      // 最終的な距離を取得・保存
+      final finalDistance = _locationService.totalDistance / 1000; // キロメートル単位
+      currentDistance.value = finalDistance;
+      await _saveDistanceToPrefs(finalDistance);
 
       if (kDebugMode) {
         print('GPS追跡サービス停止, 最終距離: ${currentDistance.value.toStringAsFixed(2)}km');
@@ -116,7 +109,8 @@ class GPSTrackingService {
 
   /// リソース解放
   void dispose() {
-    // ValueNotifierはシングルトンのため、通常はdisposeしない
+    _distanceSubscription?.cancel();
+    _locationService.dispose();
   }
 }
 

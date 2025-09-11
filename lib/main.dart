@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:transport_daily_report/screens/pre_authenticated_home_screen.dart';
@@ -12,8 +13,10 @@ import 'package:transport_daily_report/utils/permissions.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize background service
-  await initializeService();
+  // Initialize background service (mobile platforms only)
+  if (!kIsWeb) {
+    await initializeService();
+  }
   // Request all necessary permissions
   await PermissionService.requestAllPermissions();
   

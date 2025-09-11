@@ -53,6 +53,7 @@ class VisitListScreenState extends State<VisitListScreen> with DataNotifierMixin
   void refreshData() {
     _loadVisitRecords();
   }
+
   
 
   Future<void> _loadVisitRecords() async {
@@ -587,6 +588,7 @@ class VisitListScreenState extends State<VisitListScreen> with DataNotifierMixin
       ),
     ];
   }
+
 
 
 } 

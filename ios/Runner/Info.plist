@@ -45,5 +45,13 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	
+	<!-- 位置情報使用許可の設定 -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>このアプリは訪問記録の位置情報取得と移動距離の計測のために位置情報を使用します。</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>このアプリは訪問記録の位置情報取得と移動距離の計測のために位置情報を使用します。</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>このアプリは訪問記録の位置情報取得と移動距離の計測のために位置情報を使用します。</string>
 </dict>
 </plist>

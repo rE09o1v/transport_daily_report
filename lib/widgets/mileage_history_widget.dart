@@ -267,40 +267,52 @@ class _MileageHistoryWidgetState extends State<MileageHistoryWidget>
           const SizedBox(height: 12),
           
           // フィルターとソート
-          Row(
-            children: [
-              // GPS記録のみ表示
-              Expanded(
-                child: CheckboxListTile(
-                  title: const Text('GPS記録のみ', style: TextStyle(fontSize: 13)),
-                  value: _showGpsOnly,
-                  onChanged: (value) {
-                    setState(() {
-                      _showGpsOnly = value ?? false;
-                    });
-                    _loadHistoryData();
-                  },
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
+          IntrinsicHeight(
+            child: Row(
+              children: [
+                // GPS記録のみ表示
+                Expanded(
+                  child: CheckboxListTile(
+                    title: const Text(
+                      'GPS記録のみ', 
+                      style: TextStyle(fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    value: _showGpsOnly,
+                    onChanged: (value) {
+                      setState(() {
+                        _showGpsOnly = value ?? false;
+                      });
+                      _loadHistoryData();
+                    },
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ),
-              ),
-              
-              // 未完了のみ表示
-              Expanded(
-                child: CheckboxListTile(
-                  title: const Text('未完了のみ', style: TextStyle(fontSize: 13)),
-                  value: _showIncompleteOnly,
-                  onChanged: (value) {
-                    setState(() {
-                      _showIncompleteOnly = value ?? false;
-                    });
-                    _loadHistoryData();
-                  },
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
+                
+                // 未完了のみ表示
+                Expanded(
+                  child: CheckboxListTile(
+                    title: const Text(
+                      '未完了のみ', 
+                      style: TextStyle(fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    value: _showIncompleteOnly,
+                    onChanged: (value) {
+                      setState(() {
+                        _showIncompleteOnly = value ?? false;
+                      });
+                      _loadHistoryData();
+                    },
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           
           const SizedBox(height: 8),
@@ -344,6 +356,7 @@ class _MileageHistoryWidgetState extends State<MileageHistoryWidget>
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             CircularProgressIndicator(),
             SizedBox(height: 16),
@@ -355,43 +368,60 @@ class _MileageHistoryWidgetState extends State<MileageHistoryWidget>
     
     if (_errorMessage != null) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 48, color: Colors.red.shade300),
-            const SizedBox(height: 16),
-            Text(
-              _errorMessage!,
-              style: TextStyle(color: Colors.red.shade700),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadHistoryData,
-              child: const Text('再試行'),
-            ),
-          ],
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, size: 48, color: Colors.red.shade300),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Text(
+                  _errorMessage!,
+                  style: TextStyle(color: Colors.red.shade700),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadHistoryData,
+                child: const Text('再試行'),
+              ),
+            ],
+          ),
         ),
       );
     }
     
     if (_records.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.inbox_outlined, size: 48, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
-            Text(
-              '指定期間内にデータが見つかりませんでした',
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '期間を変更するか、フィルターを調整してください',
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
-            ),
-          ],
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.inbox_outlined, size: 48, color: Colors.grey.shade400),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Text(
+                  'データが見つかりませんでした',
+                  style: TextStyle(color: Colors.grey.shade600),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Text(
+                  '期間を変更してください',
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -426,33 +456,38 @@ class _MileageHistoryWidgetState extends State<MileageHistoryWidget>
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.blue.shade200),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildSummaryItem('総件数', '$totalRecords件', Icons.list_alt),
-          ),
-          Expanded(
-            child: _buildSummaryItem('完了済み', '$completedRecords件', Icons.check_circle),
-          ),
-          Expanded(
-            child: _buildSummaryItem('総距離', '${totalDistance.toStringAsFixed(1)}km', Icons.straighten),
-          ),
-          Expanded(
-            child: _buildSummaryItem('平均距離', '${avgDistance.toStringAsFixed(1)}km', Icons.trending_up),
-          ),
-        ],
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            Expanded(
+              child: _buildSummaryItem('総件数', '$totalRecords件', Icons.list_alt),
+            ),
+            Expanded(
+              child: _buildSummaryItem('完了済み', '$completedRecords件', Icons.check_circle),
+            ),
+            Expanded(
+              child: _buildSummaryItem('総距離', '${totalDistance.toStringAsFixed(1)}km', Icons.straighten),
+            ),
+            Expanded(
+              child: _buildSummaryItem('平均距離', '${avgDistance.toStringAsFixed(1)}km', Icons.trending_up),
+            ),
+          ],
+        ),
       ),
     );
   }
   
   Widget _buildSummaryItem(String label, String value, IconData icon) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 20, color: Colors.blue.shade700),
         const SizedBox(height: 4),
         Text(
           label,
           style: TextStyle(fontSize: 11, color: Colors.blue.shade700),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 2),
         Text(
@@ -462,6 +497,8 @@ class _MileageHistoryWidgetState extends State<MileageHistoryWidget>
             fontWeight: FontWeight.w600,
             color: Colors.blue.shade700,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );
@@ -509,32 +546,34 @@ class _MileageHistoryWidgetState extends State<MileageHistoryWidget>
             const SizedBox(height: 8),
             
             // メーター値情報
-            Row(
-              children: [
-                Expanded(
-                  child: _buildMileageInfo(
-                    '開始',
-                    record.startMileage,
-                    Icons.play_circle_outline,
+            IntrinsicHeight(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildMileageInfo(
+                      '開始',
+                      record.startMileage,
+                      Icons.play_circle_outline,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildMileageInfo(
-                    '終了',
-                    record.endMileage,
-                    Icons.stop_circle_outlined,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildMileageInfo(
+                      '終了',
+                      record.endMileage,
+                      Icons.stop_circle_outlined,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildMileageInfo(
-                    '距離',
-                    record.calculatedDistance,
-                    Icons.straighten,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildMileageInfo(
+                      '距離',
+                      record.calculatedDistance,
+                      Icons.straighten,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             
             // 異常情報表示（ある場合）
@@ -556,17 +595,23 @@ class _MileageHistoryWidgetState extends State<MileageHistoryWidget>
         borderRadius: BorderRadius.circular(4),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon, size: 16, color: Colors.grey.shade600),
               const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.grey.shade600,
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -579,6 +624,8 @@ class _MileageHistoryWidgetState extends State<MileageHistoryWidget>
               fontWeight: FontWeight.w600,
               color: value != null ? Colors.black87 : Colors.grey.shade500,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
