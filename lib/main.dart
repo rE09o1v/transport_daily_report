@@ -7,9 +7,16 @@ import 'package:transport_daily_report/config/app_config.dart';
 import 'package:transport_daily_report/services/app_services.dart';
 import 'package:transport_daily_report/services/storage_service.dart';
 import 'package:transport_daily_report/services/backup_service.dart';
+import 'package:transport_daily_report/services/background_service.dart';
+import 'package:transport_daily_report/utils/permissions.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize background service
+  await initializeService();
+  // Request all necessary permissions
+  await PermissionService.requestAllPermissions();
   
   // .envファイルを読み込み
   try {
