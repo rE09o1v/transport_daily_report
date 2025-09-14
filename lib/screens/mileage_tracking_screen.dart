@@ -6,6 +6,7 @@ import '../services/gps_tracking_service.dart';
 import '../services/battery_optimization_service.dart';
 import '../services/error_handling_service.dart';
 import '../widgets/mileage_input_widget.dart';
+import '../widgets/mileage_history_widget.dart';
 import '../utils/logger.dart';
 
 /// 走行距離追跡専用画面
@@ -49,7 +50,7 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _initializeServices();
     _loadCurrentDayRecord();
     _setupListeners();
@@ -166,6 +167,7 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
             Tab(icon: Icon(Icons.speed), text: '記録'),
             Tab(icon: Icon(Icons.gps_fixed), text: 'GPS'),
             Tab(icon: Icon(Icons.settings), text: '設定'),
+            Tab(icon: Icon(Icons.history), text: 'メーター値'),
           ],
         ),
       ),
@@ -179,6 +181,7 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
                     _buildRecordingTab(),
                     _buildGpsTab(),
                     _buildSettingsTab(),
+                    _buildMileageHistoryTab(),
                   ],
                 ),
     );
@@ -1319,5 +1322,10 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
       case PowerMode.powerSaver:
         return '30秒間隔・省電力（バッテリー長持ち）';
     }
+  }
+
+  /// メーター値履歴タブ
+  Widget _buildMileageHistoryTab() {
+    return const MileageHistoryWidget();
   }
 }

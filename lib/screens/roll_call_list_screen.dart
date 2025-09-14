@@ -9,7 +9,6 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../utils/period_selector_dialog.dart';
 import '../utils/logger.dart';
-import '../widgets/mileage_history_widget.dart';
 import 'package:transport_daily_report/services/data_notifier_service.dart';
 
 class RollCallListScreen extends StatefulWidget {
@@ -20,26 +19,17 @@ class RollCallListScreen extends StatefulWidget {
 }
 
 class _RollCallListScreenState extends State<RollCallListScreen> 
-    with SingleTickerProviderStateMixin, DataNotifierMixin {
+    with DataNotifierMixin {
   final _storageService = StorageService();
   final _pdfService = PdfService();
   Map<DateTime, List<RollCallRecord>> _groupedRecords = {};
   bool _isLoading = true;
   bool _isGeneratingPdf = false;
-  
-  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _loadRollCallRecords();
-  }
-  
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   @override
@@ -299,19 +289,7 @@ class _RollCallListScreenState extends State<RollCallListScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('履歴・レポート'),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(
-              icon: Icon(Icons.assignment),
-              text: '点呼記録',
-            ),
-            Tab(
-              icon: Icon(Icons.speed),
-              text: 'メーター値',
-            ),
-          ],
-        ),
+        // メーター値タブは走行距離タブに移行済み
         actions: [
           PopupMenuButton<String>(
             enabled: !_isGeneratingPdf,
@@ -360,29 +338,20 @@ class _RollCallListScreenState extends State<RollCallListScreen>
           ),
         ],
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          // 点呼記録タブ
-          _isLoading
-              ? const ModernLoadingIndicator(message: '点呼記録を読み込み中...')
-              : _groupedRecords.isEmpty
-                  ? EmptyStateWidget(
-                      icon: Icons.assignment_outlined,
-                      title: '点呼記録がありません',
-                      subtitle: '新しい点呼記録を登録してください',
-                      action: PrimaryActionButton(
-                        text: '点呼記録作成',
-                        icon: Icons.add,
-                        onPressed: () => _navigateToRollCallScreen(),
-                      ),
-                    )
-                  : _buildRecordList(),
-          
-          // メーター値履歴タブ
-          const MileageHistoryWidget(),
-        ],
-      ),
+      body: _isLoading
+          ? const ModernLoadingIndicator(message: '点呼記録を読み込み中...')
+          : _groupedRecords.isEmpty
+              ? EmptyStateWidget(
+                  icon: Icons.assignment_outlined,
+                  title: '点呼記録がありません',
+                  subtitle: '新しい点呼記録を登録してください',
+                  action: PrimaryActionButton(
+                    text: '点呼記録作成',
+                    icon: Icons.add,
+                    onPressed: () => _navigateToRollCallScreen(),
+                  ),
+                )
+              : _buildRecordList(),
     );
   }
 
