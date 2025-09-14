@@ -138,7 +138,7 @@ class _AuthWrapperScreenState extends State<AuthWrapperScreen> {
             
             // アプリ名
             Text(
-              '軽量日報アプリ',
+              'らくレポ！',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 28,

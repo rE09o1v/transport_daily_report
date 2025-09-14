@@ -1,11 +1,11 @@
 {
-    "name": "transport_daily_report",
-    "short_name": "transport_daily_report",
+    "name": "らくレポ！",
+    "short_name": "らくレポ！",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "らくレポ！ - 運送業向け日報アプリ",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

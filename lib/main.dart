@@ -133,7 +133,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '軽量日報アプリ',
+      title: 'らくレポ！',
       theme: _buildLightTheme(),
       darkTheme: _buildDarkTheme(),
       themeMode: ThemeMode.system, // システムテーマに従う
