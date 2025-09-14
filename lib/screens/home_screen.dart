@@ -4,6 +4,7 @@ import 'package:transport_daily_report/screens/visit_entry_screen.dart';
 import 'package:transport_daily_report/screens/client_list_screen.dart';
 import 'package:transport_daily_report/screens/roll_call_list_screen.dart';
 import 'package:transport_daily_report/screens/roll_call_screen.dart';
+import 'package:transport_daily_report/screens/mileage_tracking_screen.dart';
 import 'package:transport_daily_report/screens/backup_settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
     GlobalKey<State>(),
     GlobalKey<State>(),
     GlobalKey<State>(),
+    GlobalKey<State>(),
   ];
   
   @override
@@ -31,7 +33,8 @@ class _HomeScreenState extends State<HomeScreen> {
       VisitListScreen(key: _screenKeys[0]),
       ClientListScreen(key: _screenKeys[1]),
       RollCallListScreen(key: _screenKeys[2]),
-      BackupSettingsScreen(key: _screenKeys[3]),
+      MileageTrackingScreen(key: _screenKeys[3]),
+      BackupSettingsScreen(key: _screenKeys[4]),
     ];
     
     void onItemTapped(int index) {
@@ -64,6 +67,11 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icon(Icons.assignment_outlined),
             selectedIcon: Icon(Icons.assignment),
             label: '点呼',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.directions_car_outlined),
+            selectedIcon: Icon(Icons.directions_car),
+            label: '走行距離',
           ),
           NavigationDestination(
             icon: Icon(Icons.backup_outlined),

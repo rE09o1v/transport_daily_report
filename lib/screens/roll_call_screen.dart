@@ -1,13 +1,6 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:transport_daily_report/models/roll_call_record.dart';
-import 'package:transport_daily_report/models/mileage_record.dart';
 import 'package:transport_daily_report/services/storage_service.dart';
-import 'package:transport_daily_report/services/gps_tracking_service.dart';
-import 'package:transport_daily_report/services/mileage_service.dart';
-import 'package:transport_daily_report/services/background_service.dart'; // For keys
-import 'package:transport_daily_report/widgets/mileage_input_widget.dart';
 
 class RollCallScreen extends StatefulWidget {
   const RollCallScreen({super.key});
@@ -19,8 +12,6 @@ class RollCallScreen extends StatefulWidget {
 class _RollCallScreenState extends State<RollCallScreen> {
   final _formKey = GlobalKey<FormState>();
   final _storageService = StorageService();
-  final _gpsService = GPSTrackingService();
-  final _mileageService = MileageService();
 
   // Form field controllers
   final _inspectorNameController = TextEditingController();
@@ -32,13 +23,6 @@ class _RollCallScreenState extends State<RollCallScreen> {
   String _method = '対面';
   bool _isAlcoholTestUsed = true;
   bool _hasDrunkAlcohol = false;
-
-  // Mileage state
-  double? _startMileage;
-  double? _endMileage;
-  double? _calculatedDistance;
-  bool _gpsTrackingEnabled = false;
-  String? _mileageErrorText;
 
   // Roll call record state
   bool _hasStartRecord = false;
@@ -58,7 +42,6 @@ class _RollCallScreenState extends State<RollCallScreen> {
     _otherMethodDetailController.dispose();
     _remarksController.dispose();
     _alcoholValueController.dispose();
-    _mileageService.dispose();
     super.dispose();
   }
   
@@ -66,18 +49,8 @@ class _RollCallScreenState extends State<RollCallScreen> {
     final now = DateTime.now();
     final startRecord = await _storageService.getRollCallRecordByDateAndType(now, 'start');
     final endRecord = await _storageService.getRollCallRecordByDateAndType(now, 'end');
-    final isTracking = await _gpsService.isTracking;
 
     if (!mounted) return;
-
-    // Use a local variable for currentGpsDistance to avoid calling setState here
-    double currentGpsDistance = 0.0;
-
-    if(isTracking) {
-        final prefs = await SharedPreferences.getInstance();
-        _startMileage = prefs.getDouble(GPSTrackingService.startMileageKey);
-        currentGpsDistance = prefs.getDouble(GPSTrackingService.distanceKey) ?? 0.0;
-    }
 
     setState(() {
       _hasStartRecord = startRecord != null;
@@ -92,84 +65,17 @@ class _RollCallScreenState extends State<RollCallScreen> {
         _hasDrunkAlcohol = latestRecord.hasDrunkAlcohol;
         _alcoholValueController.text = latestRecord.alcoholValue?.toString() ?? '';
         _remarksController.text = latestRecord.remarks ?? '';
-
-        _startMileage = latestRecord.startMileage;
-        _endMileage = latestRecord.endMileage;
-        _calculatedDistance = latestRecord.calculatedDistance;
-        _gpsTrackingEnabled = latestRecord.gpsTrackingEnabled;
-      }
-
-      if(isTracking) {
-          _gpsTrackingEnabled = true;
-          _updateEndMileage(currentGpsDistance);
       }
     });
   }
 
-  void _onStartMileageChanged(double? value) {
-    setState(() => _startMileage = value);
-  }
-
-  void _onEndMileageChanged(double? value) {
-    setState(() {
-      _endMileage = value;
-      _updateCalculatedDistance();
-    });
-  }
-
-  void _updateCalculatedDistance() {
-    if (_startMileage != null && _endMileage != null && !_gpsTrackingEnabled) {
-      _calculatedDistance = _endMileage! - _startMileage!;
-    }
-  }
-
-  void _updateEndMileage(double currentGpsDistance) {
-      if(_startMileage != null) {
-          _endMileage = _startMileage! + currentGpsDistance;
-          _calculatedDistance = currentGpsDistance;
-      }
-  }
-
-  Future<void> _showGpsConfirmDialog() async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('GPS追跡の確認'),
-        content: const Text('GPSによる走行距離の自動記録を有効にしますか？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('いいえ'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('はい、有効にします'),
-          ),
-        ],
-      ),
-    );
-    if (result == true) {
-      setState(() => _gpsTrackingEnabled = true);
-    }
-  }
 
   Future<void> _saveStartRecord() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_startMileage == null) {
-        setState(() => _mileageErrorText = '開始時メーター値を入力してください。');
-        return;
-    }
-
     setState(() => _isProcessing = true);
 
     try {
-      // MileageServiceでメーター値記録を作成
-      await _mileageService.recordStartMileage(
-        _startMileage!,
-        _gpsTrackingEnabled,
-      );
-
       final record = _createRollCallRecord('start');
       await _storageService.addRollCallRecord(record);
 
@@ -192,43 +98,11 @@ class _RollCallScreenState extends State<RollCallScreen> {
   Future<void> _saveEndRecord() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_endMileage == null && !_gpsTrackingEnabled) {
-        setState(() => _mileageErrorText = '終了時メーター値を入力してください。');
-        return;
-    }
-
     setState(() => _isProcessing = true);
 
     try {
-      // GPS追跡が有効な場合の処理
-      if (_gpsTrackingEnabled) {
-        await _gpsService.stopTracking();
-        await Future.delayed(const Duration(milliseconds: 500));
-        final prefs = await SharedPreferences.getInstance();
-        final finalDistance = prefs.getDouble(GPSTrackingService.distanceKey) ?? _gpsService.currentDistance.value;
-        _updateEndMileage(finalDistance);
-
-        // MileageServiceでGPS距離を含む終了記録を作成
-        await _mileageService.recordEndMileage(
-          _endMileage!,
-          MileageSource.gps,
-          gpsDistance: _calculatedDistance,
-        );
-      } else {
-        // 手動入力の場合
-        await _mileageService.recordEndMileage(
-          _endMileage!,
-          MileageSource.manual,
-        );
-      }
-
       final record = _createRollCallRecord('end');
       await _storageService.addRollCallRecord(record);
-
-      // GPS追跡が有効だった場合、移動距離をDailyRecordに保存
-      if (_gpsTrackingEnabled && _calculatedDistance != null) {
-        await _storageService.saveTotalDistance(_calculatedDistance! * 1000); // キロメートルをメートルに変換
-      }
 
       if (!mounted) return;
       setState(() {
@@ -236,10 +110,8 @@ class _RollCallScreenState extends State<RollCallScreen> {
         _isProcessing = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_gpsTrackingEnabled 
-            ? '終業点呼を記録しました（移動距離: ${_calculatedDistance?.toStringAsFixed(2)}km）' 
-            : '終業点呼を記録しました'),
+        const SnackBar(
+          content: Text('終業点呼を記録しました'),
           backgroundColor: Colors.green,
         ),
       );
@@ -267,10 +139,10 @@ class _RollCallScreenState extends State<RollCallScreen> {
       hasDrunkAlcohol: _hasDrunkAlcohol,
       alcoholValue: alcoholValue,
       remarks: _remarksController.text.isEmpty ? null : _remarksController.text,
-      startMileage: _startMileage,
-      endMileage: type == 'end' ? _endMileage : null,
-      calculatedDistance: type == 'end' ? _calculatedDistance : null,
-      gpsTrackingEnabled: _gpsTrackingEnabled,
+      startMileage: null,
+      endMileage: null,
+      calculatedDistance: null,
+      gpsTrackingEnabled: false,
       gpsTrackingId: null,
       mileageValidationFlags: [],
     );
@@ -281,15 +153,6 @@ class _RollCallScreenState extends State<RollCallScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('点呼記録'),
-        actions: [
-          ValueListenableBuilder<bool>(
-            valueListenable: _gpsService.isTrackingNotifier,
-            builder: (context, isTracking, child) {
-              if (!isTracking) return const SizedBox.shrink();
-              return const _GpsIndicator();
-            },
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -311,25 +174,6 @@ class _RollCallScreenState extends State<RollCallScreen> {
                   child: Center(child: CircularProgressIndicator()),
                 ),
               const SizedBox(height: 24),
-              _MileageSection(
-                hasStartRecord: _hasStartRecord,
-                hasEndRecord: _hasEndRecord,
-                startMileage: _startMileage,
-                endMileage: _endMileage,
-                calculatedDistance: _calculatedDistance,
-                gpsTrackingEnabled: _gpsTrackingEnabled,
-                mileageErrorText: _mileageErrorText,
-                onStartMileageChanged: _onStartMileageChanged,
-                onEndMileageChanged: _onEndMileageChanged,
-                onGpsEnableChanged: (value) {
-                  if (value) {
-                    _showGpsConfirmDialog();
-                  } else {
-                    setState(() => _gpsTrackingEnabled = false);
-                  }
-                },
-              ),
-              const SizedBox(height: 16),
               _MethodSection(
                 method: _method,
                 otherMethodDetailController: _otherMethodDetailController,
@@ -357,24 +201,6 @@ class _RollCallScreenState extends State<RollCallScreen> {
 }
 
 // --- Extracted Widgets for Performance ---
-
-class _GpsIndicator extends StatelessWidget {
-  const _GpsIndicator();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.only(right: 16.0),
-      child: Row(
-        children: [
-          Icon(Icons.gps_fixed, color: Colors.green, size: 20),
-          SizedBox(width: 4),
-          Text('GPS', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-}
 
 class _RollCallActions extends StatelessWidget {
   final bool hasStartRecord;
@@ -423,148 +249,6 @@ class _RollCallActions extends StatelessWidget {
       ],
     );
   }
-}
-
-class _MileageSection extends StatelessWidget {
-    final bool hasStartRecord;
-    final bool hasEndRecord;
-    final double? startMileage;
-    final double? endMileage;
-    final double? calculatedDistance;
-    final bool gpsTrackingEnabled;
-    final String? mileageErrorText;
-    final ValueChanged<double?> onStartMileageChanged;
-    final ValueChanged<double?> onEndMileageChanged;
-    final ValueChanged<bool> onGpsEnableChanged;
-
-    const _MileageSection({
-        required this.hasStartRecord,
-        required this.hasEndRecord,
-        this.startMileage,
-        this.endMileage,
-        this.calculatedDistance,
-        required this.gpsTrackingEnabled,
-        this.mileageErrorText,
-        required this.onStartMileageChanged,
-        required this.onEndMileageChanged,
-        required this.onGpsEnableChanged,
-    });
-
-    @override
-    Widget build(BuildContext context) {
-        final gpsService = GPSTrackingService();
-        return Card(
-            child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                        const Text('メーター値記録', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 16),
-                        if (!hasStartRecord) ...[
-                            MileageInputWidget(
-                                label: '開始時メーター値',
-                                hintText: '例: 45,230',
-                                initialValue: startMileage,
-                                isRequired: true,
-                                onChanged: onStartMileageChanged,
-                                errorText: mileageErrorText,
-                            ),
-                            const SizedBox(height: 16),
-                            Row(
-                                children: [
-                                    Checkbox(value: gpsTrackingEnabled, onChanged: (v) => onGpsEnableChanged(v ?? false)),
-                                    const Text('GPS距離測定を有効にする'),
-                                ],
-                            ),
-                        ] else if (!hasEndRecord) ...[
-                            MileageInputWidget(label: '開始時メーター値', initialValue: startMileage, isReadOnly: true),
-                            const SizedBox(height: 16),
-                            if (gpsTrackingEnabled)
-                                ValueListenableBuilder<double>(
-                                    valueListenable: gpsService.currentDistance,
-                                    builder: (context, currentGpsDistance, child) {
-                                        final calculatedEndMileage = (startMileage ?? 0) + currentGpsDistance;
-                                        return Column(
-                                            children: [
-                                                _GpsDistanceDisplay(currentGpsDistance: currentGpsDistance),
-                                                const SizedBox(height: 16),
-                                                MileageInputWidget(label: '終了時メーター値（自動算出）', initialValue: calculatedEndMileage, isReadOnly: true),
-                                            ],
-                                        );
-                                    },
-                                )
-                            else
-                                _ManualEndMileageInput(
-                                    endMileage: endMileage,
-                                    calculatedDistance: calculatedDistance,
-                                    onEndMileageChanged: onEndMileageChanged,
-                                    mileageErrorText: mileageErrorText,
-                                ),
-                        ] else
-                            const Text('本日の点呼記録は完了しました。'),
-                    ],
-                ),
-            ),
-        );
-    }
-}
-
-class _GpsDistanceDisplay extends StatelessWidget {
-  final double currentGpsDistance;
-  const _GpsDistanceDisplay({required this.currentGpsDistance});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
-      child: Row(
-        children: [
-          const Icon(Icons.gps_fixed, color: Colors.green),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('GPS測定走行距離', style: TextStyle(fontWeight: FontWeight.bold)),
-                Text('${currentGpsDistance.toStringAsFixed(2)} km', style: TextStyle(fontSize: 18, color: Colors.green.shade700, fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ManualEndMileageInput extends StatelessWidget {
-    final double? endMileage;
-    final double? calculatedDistance;
-    final ValueChanged<double?> onEndMileageChanged;
-    final String? mileageErrorText;
-
-    const _ManualEndMileageInput({this.endMileage, this.calculatedDistance, required this.onEndMileageChanged, this.mileageErrorText});
-
-    @override
-    Widget build(BuildContext context) {
-        return Column(
-            children: [
-                MileageInputWidget(
-                    label: '終了時メーター値',
-                    hintText: '例: 45,476',
-                    initialValue: endMileage,
-                    isRequired: true,
-                    onChanged: onEndMileageChanged,
-                    errorText: mileageErrorText,
-                ),
-                if (calculatedDistance != null) ... [
-                    const SizedBox(height: 12),
-                    Text('走行距離: ${calculatedDistance!.toStringAsFixed(1)} km', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)),
-                ]
-            ],
-        );
-    }
 }
 
 class _MethodSection extends StatelessWidget {
