@@ -8,6 +8,7 @@ import 'package:transport_daily_report/services/app_services.dart';
 import 'package:transport_daily_report/services/storage_service.dart';
 import 'package:transport_daily_report/services/backup_service.dart';
 import 'package:transport_daily_report/services/background_service.dart';
+import 'package:transport_daily_report/services/data_migration_service.dart';
 import 'package:transport_daily_report/utils/permissions.dart';
 
 void main() async {
@@ -34,10 +35,38 @@ void main() async {
     ConfigValidator.printConfigStatus();
   }
   
+  // データマイグレーションを実行
+  await _performDataMigration();
+  
   // 事前認証復元を実行
   final initialAuthState = await _performPreAuthentication();
   
   runApp(MyApp(initialAuthState: initialAuthState));
+}
+
+/// データマイグレーションを実行
+Future<void> _performDataMigration() async {
+  try {
+    print('[STARTUP] データマイグレーション開始');
+    
+    final migrationService = DataMigrationService();
+    
+    // マイグレーションが必要かチェック
+    if (await migrationService.needsMigration()) {
+      print('[STARTUP] データマイグレーション実行中...');
+      await migrationService.runMigrations();
+      
+      // 古いデータのクリーンアップ
+      await migrationService.cleanupLegacyMileageData();
+      
+      print('[STARTUP] ✅ データマイグレーション完了');
+    } else {
+      print('[STARTUP] データマイグレーション不要 - スキップ');
+    }
+  } catch (e) {
+    print('[STARTUP] ❌ データマイグレーションエラー: $e');
+    // エラーが発生してもアプリ起動は継続
+  }
 }
 
 /// 事前認証復元を実行

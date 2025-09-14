@@ -33,6 +33,9 @@ class StorageService {
   static const String _gpsTrackingRecordsStorageKey = 'gps_tracking_records';
   static const String _mileageAuditLogStorageKey = 'mileage_audit_log';
 
+  // マイグレーション関連
+  static const String _migrationVersionKey = 'migration_version';
+
   // ============ MileageRecord 関連メソッド ============
 
   // MileageRecordの保存
@@ -1038,4 +1041,46 @@ class StorageService {
     // 点呼記録データ変更を通知
     _notifier.notifyRollCallRecordsChanged();
   }
+
+  // ============ マイグレーション関連メソッド ============
+
+  /// 現在のマイグレーションバージョンを取得
+  Future<int> getMigrationVersion() async {
+    try {
+      final prefs = await getPrefs();
+      return prefs.getInt(_migrationVersionKey) ?? 0;
+    } catch (e) {
+      AppLogger.error('マイグレーションバージョン取得エラー', 'StorageService', e);
+      return 0;
+    }
+  }
+
+  /// マイグレーションバージョンを設定
+  Future<void> setMigrationVersion(int version) async {
+    try {
+      final prefs = await getPrefs();
+      await prefs.setInt(_migrationVersionKey, version);
+      AppLogger.info('マイグレーションバージョンを $version に設定', 'StorageService');
+    } catch (e) {
+      AppLogger.error('マイグレーションバージョン設定エラー', 'StorageService', e);
+    }
+  }
+
+  /// SharedPreferencesインスタンスへの公開アクセス
+  Future<SharedPreferences> getPreferences() async {
+    return getPrefs();
+  }
+
+  /// JSONリストのパースヘルパー
+  List<dynamic> parseJsonList(String jsonString) {
+    try {
+      return jsonDecode(jsonString);
+    } catch (e) {
+      AppLogger.error('JSONパースエラー', 'StorageService', e);
+      return [];
+    }
+  }
+
+  /// 点呼記録の公開キー（マイグレーション用）
+  static String get rollCallKey => _rollCallRecordsStorageKey;
 } 

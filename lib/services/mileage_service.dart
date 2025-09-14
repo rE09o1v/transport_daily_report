@@ -40,9 +40,8 @@ class MileageService {
   /// 戻り値: 作成されたMileageRecord
   Future<MileageRecord> recordStartMileage(
     double mileage, 
-    bool gpsEnabled, {
-    RollCallRecord? rollCallRecord,
-  }) async {
+    bool gpsEnabled,
+  ) async {
     AppLogger.info('開始メーター値記録開始: $mileage km, GPS: $gpsEnabled', 'MileageService');
     
     try {
@@ -119,17 +118,6 @@ class MileageService {
         // },
       );
       
-      // 点呼記録を更新（提供された場合）
-      if (rollCallRecord != null) {
-        final updatedRollCall = rollCallRecord.copyWith(
-          startMileage: mileage,
-          gpsTrackingEnabled: gpsEnabled,
-          gpsTrackingId: gpsTrackingId,
-        );
-        
-        await _storageService.updateRollCallRecord(updatedRollCall);
-      }
-      
       AppLogger.info('開始メーター値記録完了: ${record.id}', 'MileageService');
       return record;
       
@@ -153,7 +141,6 @@ class MileageService {
     double mileage, 
     MileageSource source, {
     double? gpsDistance,
-    RollCallRecord? rollCallRecord,
   }) async {
     AppLogger.info('終了メーター値記録開始: $mileage km, Source: ${source.name}', 'MileageService');
     
@@ -225,16 +212,6 @@ class MileageService {
         // },
       );
       
-      // 点呼記録を更新（提供された場合）
-      if (rollCallRecord != null) {
-        final updatedRollCall = rollCallRecord.copyWith(
-          endMileage: mileage,
-          calculatedDistance: distance,
-          mileageValidationFlags: validation.flags,
-        );
-        
-        await _storageService.updateRollCallRecord(updatedRollCall);
-      }
       
       // 警告がある場合はログに記録
       if (validation.hasWarnings) {
