@@ -360,7 +360,7 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
               hintText: '例: 12345.6',
               initialValue: _startMileage,
               isRequired: true,
-              isReadOnly: _startMileage != null,
+              isReadOnly: _currentRecord?.startMileage != null,
               onChanged: (value) {
                 setState(() {
                   _startMileage = value;
@@ -368,12 +368,12 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
               },
               suffixWidget: const Text('km'),
             ),
-            if (_startMileage == null) ...[
+            if (_currentRecord?.startMileage == null) ...[
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _recordStartMileage,
+                  onPressed: _startMileage != null ? _recordStartMileage : null,
                   child: const Text('開始メーター値を記録'),
                 ),
               ),
