@@ -99,6 +99,9 @@ class StorageService {
     await saveMileageRecords(records);
     
     AppLogger.info('MileageRecord追加完了: ${record.id}', 'StorageService');
+    
+    // データ変更通知
+    _notifier.notifyMileageRecordsChanged();
   }
 
   // 日付でMileageRecordを取得
@@ -116,6 +119,7 @@ class StorageService {
     }
   }
 
+
   // MileageRecordの更新
   Future<void> updateMileageRecord(MileageRecord updatedRecord) async {
     final records = await loadMileageRecords();
@@ -125,6 +129,9 @@ class StorageService {
       records[index] = updatedRecord;
       await saveMileageRecords(records);
       AppLogger.info('MileageRecord更新完了: ${updatedRecord.id}', 'StorageService');
+      
+      // データ変更通知
+      _notifier.notifyMileageRecordsChanged();
     } else {
       throw Exception('MileageRecordが見つかりません: ${updatedRecord.id}');
     }

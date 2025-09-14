@@ -4,6 +4,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:transport_daily_report/models/visit_record.dart';
 import 'package:transport_daily_report/models/roll_call_record.dart';
+import 'package:transport_daily_report/models/mileage_record.dart';
+import 'package:transport_daily_report/services/mileage_service.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
 import 'package:permission_handler/permission_handler.dart';
@@ -12,6 +14,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/logger.dart';
 
 class PdfService {
+  final MileageService _mileageService = MileageService();
+  
   // フォントデータを読み込む
   Future<pw.Font> _loadFont() async {
     try {
@@ -26,26 +30,34 @@ class PdfService {
   }
 
   // 保存されている走行距離データを取得
-  Future<Map<String, dynamic>> _getMileageData() async {
+  Future<MileageRecord?> _getMileageDataForDate(DateTime date) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      
-      final startMileage = prefs.getDouble('start_mileage');
-      final endMileage = prefs.getDouble('end_mileage');
-      final lastUpdateDate = prefs.getString('last_mileage_update_date');
-      
-      return {
-        'startMileage': startMileage,
-        'endMileage': endMileage,
-        'lastUpdateDate': lastUpdateDate,
-      };
+      return await _mileageService.getCurrentDayRecord(date);
     } catch (e) {
       AppLogger.error('走行距離データの取得エラー', 'PdfService', e);
-      return {
-        'startMileage': null,
-        'endMileage': null,
-        'lastUpdateDate': null,
-      };
+      return null;
+    }
+  }
+  
+  // 期間内のメーター値データを取得
+  Future<List<MileageRecord>> _getMileageDataForPeriod(DateTime startDate, DateTime endDate) async {
+    try {
+      return await _mileageService.getMileageHistory(startDate, endDate);
+    } catch (e) {
+      AppLogger.error('期間メーター値データの取得エラー', 'PdfService', e);
+      return [];
+    }
+  }
+  
+  // メーター値のソースラベル取得
+  String _getMileageSourceLabel(MileageSource source) {
+    switch (source) {
+      case MileageSource.manual:
+        return '手動入力';
+      case MileageSource.gps:
+        return 'GPS記録';
+      case MileageSource.hybrid:
+        return 'GPS+手動修正';
     }
   }
 
@@ -231,14 +243,34 @@ class PdfService {
     final font = await _loadFont();
     
     // 走行距離データを取得
-    final mileageData = await _getMileageData();
-    final startMileage = mileageData['startMileage'];
-    final endMileage = mileageData['endMileage'];
-    String distanceDiff = '';
+    final mileageRecord = await _getMileageDataForDate(date);
+    String mileageInfo = '';
     
-    // 差分の計算
-    if (startMileage != null && endMileage != null) {
-      distanceDiff = '${(endMileage - startMileage).toStringAsFixed(1)}km';
+    // メーター値情報を構築
+    if (mileageRecord != null) {
+      final startMileage = mileageRecord.startMileage;
+      final endMileage = mileageRecord.endMileage;
+      final calculatedDistance = mileageRecord.calculatedDistance;
+      
+      if (startMileage != null) {
+        mileageInfo += '開始: ${startMileage.toStringAsFixed(1)}km';
+      }
+      
+      if (endMileage != null) {
+        if (mileageInfo.isNotEmpty) mileageInfo += ' | ';
+        mileageInfo += '終了: ${endMileage.toStringAsFixed(1)}km';
+      }
+      
+      if (calculatedDistance != null && calculatedDistance > 0) {
+        if (mileageInfo.isNotEmpty) mileageInfo += ' | ';
+        mileageInfo += '走行: ${calculatedDistance.toStringAsFixed(1)}km';
+      }
+      
+      // 記録方法を追加
+      final sourceLabel = _getMileageSourceLabel(mileageRecord.source);
+      if (mileageInfo.isNotEmpty) mileageInfo += ' ($sourceLabel)';
+    } else {
+      mileageInfo = '未記録';
     }
     
     // PDF文書を作成
@@ -293,22 +325,9 @@ class PdfService {
                     '日付: ${dateFormatter.format(date)}',
                     style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
                   ),
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
-                    children: [
-                      pw.Text(
-                        '出発: ${startMileage?.toStringAsFixed(1) ?? "---"} km',
-                        style: const pw.TextStyle(fontSize: 10),
-                      ),
-                      pw.Text(
-                        '帰社: ${endMileage?.toStringAsFixed(1) ?? "---"} km',
-                        style: const pw.TextStyle(fontSize: 10),
-                      ),
-                      pw.Text(
-                        '走行距離: ${distanceDiff.isNotEmpty ? distanceDiff : "---"}',
-                        style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
-                      ),
-                    ],
+                  pw.Text(
+                    'メーター値: $mileageInfo',
+                    style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
                   ),
                 ],
               ),
@@ -430,17 +449,6 @@ class PdfService {
     // 日本語フォントを読み込む
     final font = await _loadFont();
     
-    // 走行距離データを取得
-    final mileageData = await _getMileageData();
-    final startMileage = mileageData['startMileage'];
-    final endMileage = mileageData['endMileage'];
-    String distanceDiff = '';
-    
-    // 差分の計算
-    if (startMileage != null && endMileage != null) {
-      distanceDiff = '${(endMileage - startMileage).toStringAsFixed(1)}km';
-    }
-    
     // PDF文書を作成
     final pdf = pw.Document(
       theme: pw.ThemeData.withFont(
@@ -487,22 +495,9 @@ class PdfService {
                       dayFormatter.format(date), 
                       style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)
                     ),
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.end,
-                      children: [
-                        pw.Text(
-                          '出発: ${startMileage?.toStringAsFixed(1) ?? "---"} km',
-                          style: const pw.TextStyle(fontSize: 10),
-                        ),
-                        pw.Text(
-                          '帰社: ${endMileage?.toStringAsFixed(1) ?? "---"} km',
-                          style: const pw.TextStyle(fontSize: 10),
-                        ),
-                        pw.Text(
-                          '走行距離: ${distanceDiff.isNotEmpty ? distanceDiff : "---"}',
-                          style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
-                        ),
-                      ],
+                    pw.Text(
+                      '複数日の記録',
+                      style: const pw.TextStyle(fontSize: 10),
                     ),
                   ],
                 ),
@@ -1229,6 +1224,252 @@ class PdfService {
   }) async {
     final filteredRecords = _filterRollCallRecordsByMonth(allRecords, month);
     return generateCombinedRollCallReport(filteredRecords, title: title);
+  }
+  
+  // 月次メーター値レポート生成
+  Future<File> generateMonthlyMileageReport(DateTime targetMonth) async {
+    final font = await _loadFont();
+    
+    // 月の開始日と終了日を計算
+    final startDate = DateTime(targetMonth.year, targetMonth.month, 1);
+    final endDate = DateTime(targetMonth.year, targetMonth.month + 1, 0);
+    
+    // 期間内のメーター値データを取得
+    final mileageRecords = await _getMileageDataForPeriod(startDate, endDate);
+    
+    // 統計計算
+    final totalDistance = mileageRecords
+        .where((r) => r.calculatedDistance != null)
+        .fold(0.0, (sum, r) => sum + r.calculatedDistance!);
+    
+    final avgDistance = mileageRecords.isNotEmpty 
+        ? totalDistance / mileageRecords.length 
+        : 0.0;
+    
+    final anomaliesCount = mileageRecords.where((r) => r.hasAnomalies).length;
+    
+    // GPS記録の使用統計
+    final gpsRecords = mileageRecords.where((r) => r.source == MileageSource.gps).length;
+    final manualRecords = mileageRecords.where((r) => r.source == MileageSource.manual).length;
+    final hybridRecords = mileageRecords.where((r) => r.source == MileageSource.hybrid).length;
+    
+    final pdf = pw.Document(
+      theme: pw.ThemeData.withFont(
+        base: font,
+        bold: font,
+      ),
+    );
+    
+    final monthFormatter = DateFormat('yyyy年MM月');
+    final dateFormatter = DateFormat('MM/dd');
+    
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // ヘッダー
+              pw.Center(
+                child: pw.Text(
+                  '月次走行距離レポート',
+                  style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+                ),
+              ),
+              
+              pw.SizedBox(height: 10),
+              
+              pw.Center(
+                child: pw.Text(
+                  monthFormatter.format(targetMonth),
+                  style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+                ),
+              ),
+              
+              pw.SizedBox(height: 30),
+              
+              // 集計情報
+              pw.Text(
+                '■ 集計情報',
+                style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+              ),
+              
+              pw.SizedBox(height: 15),
+              
+              pw.Table(
+                border: pw.TableBorder.all(),
+                children: [
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('項目', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('値', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('記録日数'),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('${mileageRecords.length} 日'),
+                      ),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('総走行距離'),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('${totalDistance.toStringAsFixed(1)} km'),
+                      ),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('平均走行距離'),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('${avgDistance.toStringAsFixed(1)} km/日'),
+                      ),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('異常値検出'),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('$anomaliesCount 件'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              
+              pw.SizedBox(height: 25),
+              
+              // 記録方法別統計
+              pw.Text(
+                '■ 記録方法別統計',
+                style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+              ),
+              
+              pw.SizedBox(height: 15),
+              
+              pw.Table(
+                border: pw.TableBorder.all(),
+                children: [
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('記録方法', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('回数', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('割合', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('GPS記録'),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('$gpsRecords 回'),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('${mileageRecords.isNotEmpty ? (gpsRecords / mileageRecords.length * 100).toStringAsFixed(1) : "0.0"}%'),
+                      ),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('手動入力'),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('$manualRecords 回'),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('${mileageRecords.isNotEmpty ? (manualRecords / mileageRecords.length * 100).toStringAsFixed(1) : "0.0"}%'),
+                      ),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('GPS+手動修正'),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('$hybridRecords 回'),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('${mileageRecords.isNotEmpty ? (hybridRecords / mileageRecords.length * 100).toStringAsFixed(1) : "0.0"}%'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              
+              pw.Spacer(),
+              
+              // フッター
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.end,
+                children: [
+                  pw.Text(
+                    '作成日: ${DateFormat('yyyy/MM/dd HH:mm').format(DateTime.now())}',
+                    style: const pw.TextStyle(fontSize: 10),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    
+    // ファイルを保存
+    final directory = await _getOutputDirectory();
+    final fileName = 'mileage_report_${DateFormat('yyyyMM').format(targetMonth)}.pdf';
+    final filePath = path.join(directory.path, fileName);
+    final pdfFile = File(filePath);
+    await pdfFile.writeAsBytes(await pdf.save());
+    
+    AppLogger.info('月次走行距離レポートPDF作成完了: $filePath', 'PdfService');
+    return pdfFile;
   }
 }
 
