@@ -139,12 +139,6 @@ class _RollCallScreenState extends State<RollCallScreen> {
       hasDrunkAlcohol: _hasDrunkAlcohol,
       alcoholValue: alcoholValue,
       remarks: _remarksController.text.isEmpty ? null : _remarksController.text,
-      startMileage: null,
-      endMileage: null,
-      calculatedDistance: null,
-      gpsTrackingEnabled: false,
-      gpsTrackingId: null,
-      mileageValidationFlags: [],
     );
   }
 

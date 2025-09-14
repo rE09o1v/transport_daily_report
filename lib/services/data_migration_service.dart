@@ -137,8 +137,6 @@ class DataMigrationService {
         source: gpsTrackingEnabled ? MileageSource.gps : MileageSource.manual,
         createdAt: date,
         updatedAt: DateTime.now(),
-        validationFlags: List<String>.from(startRecord['mileageValidationFlags'] ?? []),
-        gpsTrackingId: startRecord['gpsTrackingId'],
       );
 
       // 既存のMileageRecordがないかチェック
@@ -187,7 +185,7 @@ class DataMigrationService {
       AppLogger.info('レガシーメーター値データのクリーンアップ開始', 'DataMigrationService');
       
       // 既存の点呼記録を読み込み
-      final rollCallRecords = await _storageService.getRollCallRecords();
+      final rollCallRecords = await _storageService.loadRollCallRecords();
       
       // メーター値フィールドを削除した新しいフォーマットで再保存
       // （この時点では新しいRollCallRecordモデルを使用するため、メーター値フィールドは自動的に除外される）
