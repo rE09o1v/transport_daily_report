@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:transport_daily_report/models/roll_call_record.dart';
+import 'package:transport_daily_report/models/mileage_record.dart';
 import 'package:transport_daily_report/services/storage_service.dart';
 import 'package:transport_daily_report/services/gps_tracking_service.dart';
+import 'package:transport_daily_report/services/mileage_service.dart';
 import 'package:transport_daily_report/services/background_service.dart'; // For keys
 import 'package:transport_daily_report/widgets/mileage_input_widget.dart';
 
@@ -18,6 +20,7 @@ class _RollCallScreenState extends State<RollCallScreen> {
   final _formKey = GlobalKey<FormState>();
   final _storageService = StorageService();
   final _gpsService = GPSTrackingService();
+  final _mileageService = MileageService();
 
   // Form field controllers
   final _inspectorNameController = TextEditingController();
@@ -55,6 +58,7 @@ class _RollCallScreenState extends State<RollCallScreen> {
     _otherMethodDetailController.dispose();
     _remarksController.dispose();
     _alcoholValueController.dispose();
+    _mileageService.dispose();
     super.dispose();
   }
   
@@ -160,9 +164,11 @@ class _RollCallScreenState extends State<RollCallScreen> {
     setState(() => _isProcessing = true);
 
     try {
-      if (_gpsTrackingEnabled) {
-        await _gpsService.startTracking(startMileage: _startMileage!);
-      }
+      // MileageServiceでメーター値記録を作成
+      await _mileageService.recordStartMileage(
+        _startMileage!,
+        _gpsTrackingEnabled,
+      );
 
       final record = _createRollCallRecord('start');
       await _storageService.addRollCallRecord(record);
@@ -194,12 +200,26 @@ class _RollCallScreenState extends State<RollCallScreen> {
     setState(() => _isProcessing = true);
 
     try {
+      // GPS追跡が有効な場合の処理
       if (_gpsTrackingEnabled) {
         await _gpsService.stopTracking();
         await Future.delayed(const Duration(milliseconds: 500));
         final prefs = await SharedPreferences.getInstance();
         final finalDistance = prefs.getDouble(GPSTrackingService.distanceKey) ?? _gpsService.currentDistance.value;
         _updateEndMileage(finalDistance);
+
+        // MileageServiceでGPS距離を含む終了記録を作成
+        await _mileageService.recordEndMileage(
+          _endMileage!,
+          MileageSource.gps,
+          gpsDistance: _calculatedDistance,
+        );
+      } else {
+        // 手動入力の場合
+        await _mileageService.recordEndMileage(
+          _endMileage!,
+          MileageSource.manual,
+        );
       }
 
       final record = _createRollCallRecord('end');
