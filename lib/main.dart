@@ -18,8 +18,7 @@ void main() async {
   if (!kIsWeb) {
     await initializeService();
   }
-  // Request all necessary permissions
-  await PermissionService.requestAllPermissions();
+  // 権限要求は各機能で必要な時に実行するように変更（起動時強制要求を削除）
   
   // .envファイルを読み込み
   try {
