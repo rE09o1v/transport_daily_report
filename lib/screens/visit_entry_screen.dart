@@ -103,15 +103,15 @@ class _VisitEntryScreenState extends State<VisitEntryScreen> {
   Future<void> _loadClients() async {
     try {
       final allClients = await _storageService.loadClients();
-      
+
       // 近くの顧客を検索
       final nearbyClients = _currentPosition != null
           ? await _locationService.findNearbyClients(allClients)
           : <Client>[];
-      
-      // 最近の顧客（最大5件）
-      final recentClients = allClients.take(5).toList();
-      
+
+      // 最近の顧客（訪問記録を基に最大5件）
+      final recentClients = await _getRecentlyVisitedClients(allClients);
+
       if (!mounted) return;
       setState(() {
         _nearbyClients = nearbyClients;
@@ -119,6 +119,44 @@ class _VisitEntryScreenState extends State<VisitEntryScreen> {
       });
     } catch (e) {
       debugPrint('顧客リストの読み込みに失敗しました: $e');
+    }
+  }
+
+  /// 最近訪問した得意先を取得（訪問記録を基に新しい順）
+  Future<List<Client>> _getRecentlyVisitedClients(List<Client> allClients) async {
+    try {
+      // 過去30日間の訪問記録を取得
+      final now = DateTime.now();
+      final thirtyDaysAgo = now.subtract(const Duration(days: 30));
+      final visitRecords = await _storageService.getVisitRecordsByDateRange(thirtyDaysAgo, now);
+
+      // 訪問記録を新しい順にソート
+      visitRecords.sort((a, b) => b.arrivalTime.compareTo(a.arrivalTime));
+
+      // 訪問した得意先のリストを作成（重複除去）
+      final Map<String, Client> visitedClientsMap = {};
+
+      for (final record in visitRecords) {
+        if (!visitedClientsMap.containsKey(record.clientName)) {
+          // 得意先名から対応するClientを見つける
+          final client = allClients.firstWhere(
+            (c) => c.name == record.clientName,
+            orElse: () => Client(
+              id: record.clientName.hashCode.toString(),
+              name: record.clientName,
+              phoneNumber: '',
+            ),
+          );
+          visitedClientsMap[record.clientName] = client;
+        }
+      }
+
+      // 最大5件の最近訪問した得意先を返す
+      return visitedClientsMap.values.take(5).toList();
+    } catch (e) {
+      debugPrint('最近の訪問先の取得に失敗しました: $e');
+      // エラーの場合は登録順で返す（フォールバック）
+      return allClients.take(5).toList();
     }
   }
 

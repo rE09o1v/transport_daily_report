@@ -613,9 +613,19 @@ class StorageService {
     final allRecords = await loadVisitRecords();
     return allRecords.where((record) {
       final recordDate = record.arrivalTime;
-      return recordDate.year == date.year && 
-             recordDate.month == date.month && 
+      return recordDate.year == date.year &&
+             recordDate.month == date.month &&
              recordDate.day == date.day;
+    }).toList()
+      ..sort((a, b) => a.arrivalTime.compareTo(b.arrivalTime));
+  }
+
+  // 期間で訪問記録を取得
+  Future<List<VisitRecord>> getVisitRecordsByDateRange(DateTime from, DateTime to) async {
+    final allRecords = await loadVisitRecords();
+    return allRecords.where((record) {
+      return record.arrivalTime.isAfter(from.subtract(const Duration(days: 1))) &&
+             record.arrivalTime.isBefore(to.add(const Duration(days: 1)));
     }).toList()
       ..sort((a, b) => a.arrivalTime.compareTo(b.arrivalTime));
   }

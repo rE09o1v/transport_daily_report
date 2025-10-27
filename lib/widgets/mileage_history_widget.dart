@@ -233,16 +233,16 @@ class _MileageHistoryWidgetState extends State<MileageHistoryWidget>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
       ),
       child: Column(
         children: [
           // 期間選択
           Row(
             children: [
-              const Icon(Icons.date_range, size: 18, color: Colors.grey),
+              Icon(Icons.date_range, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
               const SizedBox(width: 8),
               Expanded(
                 child: GestureDetector(
@@ -250,13 +250,16 @@ class _MileageHistoryWidgetState extends State<MileageHistoryWidget>
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade400),
+                      border: Border.all(color: Theme.of(context).colorScheme.outline),
                       borderRadius: BorderRadius.circular(4),
-                      color: Colors.white,
+                      color: Theme.of(context).colorScheme.surface,
                     ),
                     child: Text(
                       '${_formatDate(_startDate)} ～ ${_formatDate(_endDate)}',
-                      style: const TextStyle(fontSize: 14),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                     ),
                   ),
                 ),
@@ -273,9 +276,12 @@ class _MileageHistoryWidgetState extends State<MileageHistoryWidget>
                 // GPS記録のみ表示
                 Expanded(
                   child: CheckboxListTile(
-                    title: const Text(
-                      'GPS記録のみ', 
-                      style: TextStyle(fontSize: 13),
+                    title: Text(
+                      'GPS記録のみ',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -294,9 +300,12 @@ class _MileageHistoryWidgetState extends State<MileageHistoryWidget>
                 // 未完了のみ表示
                 Expanded(
                   child: CheckboxListTile(
-                    title: const Text(
-                      '未完了のみ', 
-                      style: TextStyle(fontSize: 13),
+                    title: Text(
+                      '未完了のみ',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -320,9 +329,15 @@ class _MileageHistoryWidgetState extends State<MileageHistoryWidget>
           // ソート設定
           Row(
             children: [
-              const Icon(Icons.sort, size: 18, color: Colors.grey),
+              Icon(Icons.sort, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
               const SizedBox(width: 8),
-              const Text('並び順:', style: TextStyle(fontSize: 13)),
+              Text(
+                '並び順:',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: DropdownButton<String>(
@@ -336,11 +351,47 @@ class _MileageHistoryWidgetState extends State<MileageHistoryWidget>
                     }
                   },
                   isExpanded: true,
-                  items: const [
-                    DropdownMenuItem(value: 'date_desc', child: Text('日付（新→古）', style: TextStyle(fontSize: 13))),
-                    DropdownMenuItem(value: 'date_asc', child: Text('日付（古→新）', style: TextStyle(fontSize: 13))),
-                    DropdownMenuItem(value: 'distance_desc', child: Text('距離（大→小）', style: TextStyle(fontSize: 13))),
-                    DropdownMenuItem(value: 'distance_asc', child: Text('距離（小→大）', style: TextStyle(fontSize: 13))),
+                  items: [
+                    DropdownMenuItem(
+                      value: 'date_desc',
+                      child: Text(
+                        '日付（新→古）',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'date_asc',
+                      child: Text(
+                        '日付（古→新）',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'distance_desc',
+                      child: Text(
+                        '距離（大→小）',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'distance_asc',
+                      child: Text(
+                        '距離（小→大）',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),

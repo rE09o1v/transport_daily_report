@@ -88,10 +88,10 @@ class _MileageInputWidgetState extends State<MileageInputWidget> {
         RichText(
           text: TextSpan(
             text: widget.label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w500,
-              color: Colors.black87,
+              color: Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black87,
             ),
             children: [
               if (widget.isRequired)
@@ -112,15 +112,15 @@ class _MileageInputWidgetState extends State<MileageInputWidget> {
         Container(
           decoration: BoxDecoration(
             border: Border.all(
-              color: widget.errorText != null 
-                ? Colors.red 
-                : Colors.grey.shade300,
+              color: widget.errorText != null
+                ? Colors.red
+                : Theme.of(context).colorScheme.outline,
               width: 1.5,
             ),
             borderRadius: BorderRadius.circular(8),
-            color: widget.isReadOnly 
-              ? Colors.grey.shade100 
-              : Colors.white,
+            color: widget.isReadOnly
+              ? Theme.of(context).colorScheme.surfaceContainerHighest
+              : Theme.of(context).colorScheme.surface,
           ),
           child: Row(
             children: [
@@ -138,24 +138,20 @@ class _MileageInputWidgetState extends State<MileageInputWidget> {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
-                    color: widget.isReadOnly 
-                      ? Colors.grey.shade600 
-                      : Colors.black87,
+                    color: widget.isReadOnly
+                      ? Theme.of(context).colorScheme.onSurfaceVariant
+                      : Theme.of(context).colorScheme.onSurface,
                   ),
                   decoration: InputDecoration(
                     hintText: widget.hintText ?? '例: 45,230',
                     hintStyle: TextStyle(
                       fontSize: 16,
-                      color: Colors.grey.shade500,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.all(16),
-                    suffixText: 'km',
-                    suffixStyle: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey,
-                    ),
+                    // suffixTextを削除して重複を回避
+                    // suffixWidgetが提供されている場合はそちらを使用
                   ),
                   validator: widget.isRequired ? (value) {
                     if (value == null || value.isEmpty) {
@@ -173,11 +169,18 @@ class _MileageInputWidgetState extends State<MileageInputWidget> {
                 ),
               ),
               
-              // 追加ウィジェット（修正ボタンなど）
+              // 単位表示（km）- ダークテーマ対応
               if (widget.suffixWidget != null)
                 Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: widget.suffixWidget!,
+                  padding: const EdgeInsets.only(right: 16),
+                  child: DefaultTextStyle(
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    child: widget.suffixWidget!,
+                  ),
                 ),
             ],
           ),
