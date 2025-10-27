@@ -228,10 +228,10 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
           // 開始メーター値
           _buildStartMileageSection(),
           const SizedBox(height: 24),
-          
-          // GPS記録セクション
-          if (_startMileage != null && _endMileage == null) ...[
-            _buildGpsTrackingSection(),
+
+          // GPS追跡状況（記録開始後）
+          if (_startMileage != null && _currentRecord?.startMileage != null && _endMileage == null) ...[
+            _buildGpsStatusSection(),
             const SizedBox(height: 24),
           ],
           
@@ -368,7 +368,50 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
               },
               suffixWidget: const Text('km'),
             ),
+            // GPS自動追跡設定
             if (_currentRecord?.startMileage == null) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Icon(Icons.gps_fixed),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'GPS自動追跡',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  Switch(
+                    value: _gpsTrackingEnabled,
+                    onChanged: (value) {
+                      setState(() {
+                        _gpsTrackingEnabled = value;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              if (_gpsTrackingEnabled) ...[
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                  ),
+                  child: Text(
+                    'GPS自動追跡が有効です。開始メーター値を記録すると同時にGPS追跡も開始されます。',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.blue[700],
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
@@ -384,8 +427,8 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
     );
   }
 
-  /// GPS記録セクション
-  Widget _buildGpsTrackingSection() {
+  /// GPS追跡状況セクション（記録開始後）
+  Widget _buildGpsStatusSection() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -397,25 +440,11 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
                 const Icon(Icons.gps_fixed),
                 const SizedBox(width: 8),
                 const Text(
-                  'GPS自動追跡',
+                  'GPS追跡状況',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
-                ),
-                const Spacer(),
-                Switch(
-                  value: _gpsTrackingEnabled,
-                  onChanged: (_startMileage != null && !_isGpsTracking) 
-                      ? (value) {
-                          setState(() {
-                            _gpsTrackingEnabled = value;
-                          });
-                          if (value) {
-                            _startGpsTracking();
-                          }
-                        }
-                      : null,
                 ),
               ],
             ),
@@ -459,29 +488,41 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
                   child: const Text('GPS追跡を停止'),
                 ),
               ),
-            ] else ...[
-              Text(
-                'GPS自動追跡を有効にすると、移動中の走行距離を自動で計測します。\n'
-                'バッテリー消費を抑えるため、省電力設定も利用できます。',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
+            ] else if (_gpsTrackingEnabled) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
                 ),
-              ),
-              if (_gpsTrackingEnabled && _startMileage != null) ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _startGpsTracking,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('GPS追跡を開始'),
+                child: const Text(
+                  'GPS追跡が有効でしたが、現在は停止中です。',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.orange,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ],
+              ),
+            ] else ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                ),
+                child: const Text(
+                  'GPS追跡は無効です。手動でメーター値を入力してください。',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey,
+                  ),
+                ),
+              ),
             ],
           ],
         ),
@@ -563,19 +604,17 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
   /// 計算結果カード
   Widget _buildCalculationResultCard() {
     double? calculatedDistance;
-    
+
     if (_isGpsTracking) {
       calculatedDistance = _currentGpsDistance;
     } else if (_startMileage != null && _endMileage != null) {
       calculatedDistance = _endMileage! - _startMileage!;
     }
-    
+
     if (calculatedDistance == null) return const SizedBox.shrink();
-    
-    final isAnomaly = calculatedDistance > 1000.0 || calculatedDistance < 0;
-    
+
     return Card(
-      color: isAnomaly ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+      color: Colors.green.withValues(alpha: 0.1),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -583,17 +622,17 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
           children: [
             Row(
               children: [
-                Icon(
-                  isAnomaly ? Icons.warning : Icons.check_circle,
-                  color: isAnomaly ? Colors.red : Colors.green,
+                const Icon(
+                  Icons.check_circle,
+                  color: Colors.green,
                 ),
                 const SizedBox(width: 8),
-                Text(
+                const Text(
                   '計算結果',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: isAnomaly ? Colors.red : Colors.green,
+                    color: Colors.green,
                   ),
                 ),
               ],
@@ -605,7 +644,7 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
                 _buildResultItem('開始', '${_startMileage?.toStringAsFixed(1) ?? '---'} km'),
                 const Icon(Icons.arrow_forward),
                 if (_isGpsTracking)
-                  _buildResultItem('GPS距離', '${calculatedDistance.toStringAsFixed(1)} km')
+                  _buildResultItem('終了予想', '${(_startMileage! + calculatedDistance).toStringAsFixed(1)} km')
                 else
                   _buildResultItem('終了', '${_endMileage?.toStringAsFixed(1) ?? '---'} km'),
               ],
@@ -615,40 +654,19 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: (isAnomaly ? Colors.red : Colors.green).withOpacity(0.2),
+                color: Colors.green.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 '走行距離: ${calculatedDistance.toStringAsFixed(1)} km',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: isAnomaly ? Colors.red : Colors.green,
+                  color: Colors.green,
                 ),
               ),
             ),
-            if (isAnomaly) ...[
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange),
-                ),
-                child: const Text(
-                  '⚠️ 異常値が検出されました\n'
-                  '1日の走行距離が1000kmを超過しているか、'
-                  'メーター値の逆転が発生している可能性があります。',
-                  style: TextStyle(
-                    color: Colors.orange,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -1081,10 +1099,17 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
         _currentRecord = record;
       });
 
+      // GPS追跡が有効な場合は同時に開始
+      if (_gpsTrackingEnabled) {
+        await _startGpsTracking();
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('開始メーター値を記録しました'),
+          SnackBar(
+            content: Text(_gpsTrackingEnabled
+                ? '開始メーター値を記録し、GPS追跡を開始しました'
+                : '開始メーター値を記録しました'),
             backgroundColor: Colors.green,
           ),
         );
@@ -1152,9 +1177,109 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
   Future<void> _recordEndMileage() async {
     if (_startMileage == null || _endMileage == null) return;
 
+    // バリデーションチェック
+    final calculatedDistance = _endMileage! - _startMileage!;
+
+    // 終業時走行距離が始業時走行距離を下回っている場合
+    if (calculatedDistance < 0) {
+      if (mounted) {
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.error, color: Colors.red),
+                SizedBox(width: 8),
+                Text('入力エラー'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '終了メーター値が開始メーター値を下回っています。',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                Text('開始メーター値: ${_startMileage!.toStringAsFixed(1)} km'),
+                Text('終了メーター値: ${_endMileage!.toStringAsFixed(1)} km'),
+                Text(
+                  '差分: ${calculatedDistance.toStringAsFixed(1)} km',
+                  style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                const Text('正しい終了メーター値を入力してください。'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('再入力する'),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
+
+    // 走行距離が1000kmを超過している場合（警告）
+    if (calculatedDistance > 1000.0) {
+      if (mounted) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.warning, color: Colors.orange),
+                SizedBox(width: 8),
+                Text('確認'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '1日の走行距離が1000kmを超えています。',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                Text('開始メーター値: ${_startMileage!.toStringAsFixed(1)} km'),
+                Text('終了メーター値: ${_endMileage!.toStringAsFixed(1)} km'),
+                Text(
+                  '走行距離: ${calculatedDistance.toStringAsFixed(1)} km',
+                  style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                const Text('この値で記録しますか？'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('再入力する'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('この値で記録'),
+              ),
+            ],
+          ),
+        );
+
+        if (confirmed != true) return;
+      }
+    }
+
     try {
-      final source = _isGpsTracking 
-          ? MileageSource.gps 
+      final source = _isGpsTracking
+          ? MileageSource.gps
           : MileageSource.manual;
 
       final record = await _mileageService.recordEndMileage(
