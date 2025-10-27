@@ -230,19 +230,21 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
           const SizedBox(height: 24),
 
           // GPS追跡状況（記録開始後）
-          if (_startMileage != null && _currentRecord?.startMileage != null && _endMileage == null) ...[
+          // 記録が完了していない場合は常に表示（ウィジェットツリーの構造を維持）
+          if (_startMileage != null && _currentRecord?.startMileage != null && !(_currentRecord?.isComplete ?? false)) ...[
             _buildGpsStatusSection(),
             const SizedBox(height: 24),
           ],
-          
+
           // 終了メーター値
           if (_startMileage != null) ...[
             _buildEndMileageSection(),
             const SizedBox(height: 24),
           ],
-          
+
           // 計算結果
-          if (_startMileage != null && (_endMileage != null || _isGpsTracking)) ...[
+          // 開始メーター値があれば常に表示（ウィジェットツリーの構造を維持）
+          if (_startMileage != null) ...[
             _buildCalculationResultCard(),
             const SizedBox(height: 24),
           ],
@@ -322,9 +324,9 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: color.withOpacity(0.3)),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
           ),
           child: Text(
             value,
@@ -399,9 +401,9 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.1),
+                    color: Colors.blue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                    border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
                   ),
                   child: Text(
                     'GPS自動追跡が有効です。開始メーター値を記録すると同時にGPS追跡も開始されます。',
@@ -416,7 +418,7 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _startMileage != null ? _recordStartMileage : null,
+                  onPressed: _recordStartMileage,
                   child: const Text('開始メーター値を記録'),
                 ),
               ),
@@ -454,9 +456,9 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
+                  color: Colors.green.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green.withOpacity(0.3)),
+                  border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
                 ),
                 child: Column(
                   children: [
@@ -493,9 +495,9 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
+                  color: Colors.orange.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                  border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
                 ),
                 child: const Text(
                   'GPS追跡が有効でしたが、現在は停止中です。',
@@ -511,9 +513,9 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.1),
+                  color: Colors.grey.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                  border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
                 ),
                 child: const Text(
                   'GPS追跡は無効です。手動でメーター値を入力してください。',
@@ -551,9 +553,9 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: Colors.blue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                  border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
                 ),
                 child: Column(
                   children: [
