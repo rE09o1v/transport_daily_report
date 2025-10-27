@@ -611,7 +611,11 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
       calculatedDistance = _endMileage! - _startMileage!;
     }
 
-    if (calculatedDistance == null) return const SizedBox.shrink();
+    // 開始メーター値がない場合は非表示
+    if (_startMileage == null) return const SizedBox.shrink();
+
+    // 計算結果がない場合でも、カードは表示してウィジェットツリーの構造を維持
+    final hasResult = calculatedDistance != null;
 
     return Card(
       color: Colors.green.withValues(alpha: 0.1),
@@ -622,17 +626,17 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
           children: [
             Row(
               children: [
-                const Icon(
-                  Icons.check_circle,
-                  color: Colors.green,
+                Icon(
+                  hasResult ? Icons.check_circle : Icons.pending,
+                  color: hasResult ? Colors.green : Colors.grey,
                 ),
                 const SizedBox(width: 8),
-                const Text(
+                Text(
                   '計算結果',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Colors.green,
+                    color: hasResult ? Colors.green : Colors.grey,
                   ),
                 ),
               ],
@@ -641,10 +645,10 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildResultItem('開始', '${_startMileage?.toStringAsFixed(1) ?? '---'} km'),
+                _buildResultItem('開始', '${_startMileage!.toStringAsFixed(1)} km'),
                 const Icon(Icons.arrow_forward),
                 if (_isGpsTracking)
-                  _buildResultItem('終了予想', '${(_startMileage! + calculatedDistance).toStringAsFixed(1)} km')
+                  _buildResultItem('終了予想', hasResult ? '${(_startMileage! + calculatedDistance).toStringAsFixed(1)} km' : '---')
                 else
                   _buildResultItem('終了', '${_endMileage?.toStringAsFixed(1) ?? '---'} km'),
               ],
@@ -654,16 +658,18 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.2),
+                color: (hasResult ? Colors.green : Colors.grey).withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                '走行距離: ${calculatedDistance.toStringAsFixed(1)} km',
+                hasResult
+                  ? '走行距離: ${calculatedDistance.toStringAsFixed(1)} km'
+                  : '終了メーター値を入力してください',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 24,
+                style: TextStyle(
+                  fontSize: hasResult ? 24 : 16,
                   fontWeight: FontWeight.bold,
-                  color: Colors.green,
+                  color: hasResult ? Colors.green : Colors.grey,
                 ),
               ),
             ),
@@ -1052,7 +1058,7 @@ class _MileageTrackingScreenState extends State<MileageTrackingScreen>
   /// 推奨設定カード
   Widget _buildRecommendationCard() {
     return Card(
-      color: Colors.blue.withOpacity(0.1),
+      color: Colors.blue.withValues(alpha: 0.1),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
