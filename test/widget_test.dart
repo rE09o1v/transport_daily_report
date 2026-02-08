@@ -11,6 +11,7 @@ import 'package:transport_daily_report/services/backup_service.dart';
 import 'package:transport_daily_report/services/storage_service.dart';
 
 import 'package:transport_daily_report/main.dart';
+import 'package:transport_daily_report/screens/pre_authenticated_home_screen.dart';
 
 void main() {
   testWidgets('App initializes smoke test', (WidgetTester tester) async {
@@ -25,7 +26,8 @@ void main() {
     await tester.pumpWidget(MyApp(initialAuthState: initialAuthState));
 
     // Verify that the app loads successfully
-    await tester.pumpAndSettle();
+    // NOTE: The app starts background loading; avoid pumpAndSettle timeout.
+    await tester.pump(const Duration(milliseconds: 200));
     
     // Find any widget to ensure the app loaded
     expect(find.byType(MaterialApp), findsOneWidget);

@@ -5,9 +5,37 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+import java.util.Properties
+
+fun readDotenvValue(dotenvFile: File, key: String): String? {
+    if (!dotenvFile.exists()) return null
+
+    // NOTE: Kotlin does not allow non-local returns from forEachLine lambdas in this context.
+    // Use a plain loop so we can return from the function.
+    for (line in dotenvFile.readLines()) {
+        val trimmed = line.trim()
+        if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
+
+        val idx = trimmed.indexOf('=')
+        if (idx <= 0) continue
+
+        val k = trimmed.substring(0, idx).trim()
+        if (k != key) continue
+
+        var v = trimmed.substring(idx + 1).trim()
+        // Strip optional surrounding quotes
+        if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith('\'') && v.endsWith('\''))) {
+            v = v.substring(1, v.length - 1)
+        }
+        return v
+    }
+
+    return null
+}
+
 android {
     namespace = "com.example.transport_daily_report"
-    compileSdk = 35
+    compileSdk = 36
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -36,6 +64,20 @@ android {
         
         // OnBackInvokedCallbackの有効化
         manifestPlaceholders["enableOnBackInvokedCallback"] = true
+
+        // Google Maps API Key (Android)
+        // Source of truth: project root .env (loaded by flutter_dotenv at runtime)
+        // This ensures we can put the key in .env and still inject it into AndroidManifest.
+        val dotenv = rootProject.file("../.env")
+        val mapsKey = readDotenvValue(dotenv, "GOOGLE_MAPS_API_KEY_ANDROID")
+
+        if (mapsKey.isNullOrBlank()) {
+            logger.warn("[maps] GOOGLE_MAPS_API_KEY_ANDROID is not set in .env. Google Maps may fail to load.")
+            manifestPlaceholders["MAPS_API_KEY"] = ""
+        } else {
+            // Do not print the key.
+            manifestPlaceholders["MAPS_API_KEY"] = mapsKey
+        }
     }
 
     buildTypes {
@@ -52,6 +94,5 @@ flutter {
 }
 
 dependencies {
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
 }

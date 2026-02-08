@@ -238,7 +238,13 @@ class ErrorHandlingService {
             }
           }
         }
-        break;
+
+        // リトライ手段がない場合は手動保存を促す
+        return DataErrorRecoveryResult(
+          success: false,
+          fallbackAction: DataFallbackAction.showManualSaveDialog,
+          message: 'データの保存に失敗しました。手動保存をお試しください',
+        );
       
       case DataErrorType.loadFailed:
         return DataErrorRecoveryResult(

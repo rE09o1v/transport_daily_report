@@ -162,12 +162,9 @@ class MyApp extends StatelessWidget {
       colorScheme: colorScheme,
       
       // カードテーマ
-      cardTheme: CardTheme(
+      cardTheme: const CardThemeData(
         elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        margin: const EdgeInsets.all(8),
+        margin: EdgeInsets.all(8),
       ),
       
       // リストタイルテーマ
@@ -246,12 +243,9 @@ class MyApp extends StatelessWidget {
       ),
       
       // ダイアログテーマ
-      dialogTheme: DialogTheme(
+      dialogTheme: const DialogThemeData(
         elevation: 8,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        insetPadding: const EdgeInsets.all(16),
+        insetPadding: EdgeInsets.all(16),
       ),
       
       // ボトムシートテーマ
@@ -285,12 +279,9 @@ class MyApp extends StatelessWidget {
       colorScheme: colorScheme,
       
       // ダークテーマ用の設定を同様に構築
-      cardTheme: CardTheme(
+      cardTheme: const CardThemeData(
         elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        margin: const EdgeInsets.all(8),
+        margin: EdgeInsets.all(8),
       ),
       
       floatingActionButtonTheme: FloatingActionButtonThemeData(

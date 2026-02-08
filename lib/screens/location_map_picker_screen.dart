@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:latlong2/latlong.dart';
+
+import '../models/location_selection_controller.dart';
 
 class LocationMapPickerScreen extends StatefulWidget {
   final LatLng? initialPosition;
 
+  /// For tests / advanced usage. If omitted, screen creates its own controller.
+  final LocationSelectionController? controller;
+
   const LocationMapPickerScreen({
     super.key,
     this.initialPosition,
+    this.controller,
   });
 
   @override
@@ -15,8 +22,11 @@ class LocationMapPickerScreen extends StatefulWidget {
 }
 
 class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
+  // NOTE: Old flutter_map controller kept until migration is completed.
   late MapController _mapController;
-  late LatLng _currentCenter;
+
+  gmaps.GoogleMapController? _googleMapController;
+  late LocationSelectionController _controller;
   bool _isLoading = true;
   bool _hasMapError = false;
   String? _errorMessage;
@@ -33,7 +43,10 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
   Future<void> _initializeMap() async {
     try {
       _mapController = MapController();
-      _currentCenter = widget.initialPosition ?? _defaultPosition;
+      _controller = widget.controller ?? LocationSelectionController(
+        initialCenter: widget.initialPosition,
+        defaultCenter: _defaultPosition,
+      );
       
       // 初期化完了まで少し待つ
       await Future.delayed(const Duration(milliseconds: 500));
@@ -59,6 +72,7 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
   @override
   void dispose() {
     _mapController.dispose();
+    _googleMapController?.dispose();
     super.dispose();
   }
 
@@ -66,14 +80,14 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
   void _onMapPositionChanged(MapCamera position, bool hasGesture) {
     if (hasGesture) {
       setState(() {
-        _currentCenter = position.center;
+        _controller.updateCenter(position.center);
       });
     }
   }
 
   // 決定ボタンが押された際の処理
   void _confirmLocation() {
-    Navigator.of(context).pop(_currentCenter);
+    Navigator.of(context).pop(_controller.confirm());
   }
 
   // キャンセルボタンが押された際の処理
@@ -153,24 +167,23 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
                 )
               : Stack(
               children: [
-                // メイン地図
-                FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: _currentCenter,
-                    initialZoom: 15.0,
-                    minZoom: 5.0,
-                    maxZoom: 18.0,
-                    onPositionChanged: _onMapPositionChanged,
-                  ),
-                  children: [
-                    // 地図タイル層
-                    TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.example.transport_daily_report',
-                      maxZoom: 18,
+                // メイン地図（Google Maps）
+                gmaps.GoogleMap(
+                  initialCameraPosition: gmaps.CameraPosition(
+                    target: gmaps.LatLng(
+                      _controller.currentCenter.latitude,
+                      _controller.currentCenter.longitude,
                     ),
-                  ],
+                    zoom: 15.0,
+                  ),
+                  myLocationButtonEnabled: false,
+                  zoomControlsEnabled: false,
+                  onMapCreated: (c) {
+                    _googleMapController = c;
+                  },
+                  onCameraMove: (pos) {
+                    _controller.updateCenter(LatLng(pos.target.latitude, pos.target.longitude));
+                  },
                 ),
                 
                 // 中央の固定ピン
@@ -229,11 +242,11 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '緯度: ${_currentCenter.latitude.toStringAsFixed(6)}',
+                          '緯度: ${_controller.currentCenter.latitude.toStringAsFixed(6)}',
                           style: const TextStyle(fontSize: 16),
                         ),
                         Text(
-                          '経度: ${_currentCenter.longitude.toStringAsFixed(6)}',
+                          '経度: ${_controller.currentCenter.longitude.toStringAsFixed(6)}',
                           style: const TextStyle(fontSize: 16),
                         ),
                       ],
